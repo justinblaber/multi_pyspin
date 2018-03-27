@@ -1,2 +1,2 @@
-# stereo_bfs_pyspin
-Stereovision setup for the Blackfly S using PySin
+# stereo_pyspin
+Stereovision setup using PySpin
