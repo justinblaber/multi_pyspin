@@ -1,0 +1,103 @@
+--- 
+# Set default user set
+- UserSetSelector:
+    value: PySpin.UserSetDefault_Default
+
+# Load default user set        
+- UserSetLoad:
+
+# Ensure trigger mode is off first - this is required in order to set the trigger source   and overlap
+- TriggerMode: 
+    value: PySpin.TriggerMode_Off
+
+# Select trigger source to line 3
+- TriggerSource: 
+    value: PySpin.TriggerSource_Line3
+
+# Set trigger overlap to readout
+- TriggerOverlap: 
+    value: PySpin.TriggerOverlap_ReadOut
+
+# Turn trigger mode back on
+- TriggerMode:
+    value: PySpin.TriggerMode_On
+
+# Set stream buffer handling mode to newest only
+- TLStream.StreamBufferHandlingMode:
+    value: PySpin.StreamBufferHandlingMode_NewestOnly
+
+# Set acquisition mode to continuous
+- AcquisitionMode:
+    value: PySpin.AcquisitionMode_Continuous
+
+# Enable manually setting framerate
+- AcquisitionFrameRateEnable:
+    value: True
+
+# Set framerate
+- AcquisitionFrameRate:
+    value: frame_rate
+
+# Set exposure mode to timed
+- ExposureMode:
+    value: PySpin.ExposureMode_Timed
+
+# Disable automatic exposure
+- ExposureAuto:
+    value: PySpin.ExposureAuto_Off
+
+# Set exposure time
+- ExposureTime:
+    value: 10000
+
+# Set gain selector to all
+- GainSelector:
+    value: PySpin.GainSelector_All
+
+# Disable automatic gain
+- GainAuto:
+    value: PySpin.GainAuto_Off
+
+# Set gain
+- Gain:
+    value: 1
+
+# Set black level selector to all
+- BlackLevelSelector:
+    value: PySpin.BlackLevelSelector_All
+
+# Disable black level adjustment
+- BlackLevel:
+    value: 0
+
+# Disable white balance
+- BalanceWhiteAuto:
+    value: PySpin.BalanceWhiteAuto_Off
+
+# Set balance ratio selector to red
+- BalanceRatioSelector:
+    value: PySpin.BalanceRatioSelector_Red
+
+# Set balance ratio to 1
+- BalanceRatio:
+    value: 1
+
+# Set balance ratio selector to blue
+- BalanceRatioSelector:
+    value: PySpin.BalanceRatioSelector_Blue
+
+# Set balance ratio to 1
+- BalanceRatio:
+    value: 1
+
+# Disable gamma
+- GammaEnable:
+    value: False
+
+# Set 16 bit pixel
+- PixelFormat:
+    value: PySpin.PixelFormat_Mono16
+
+# Max out bit depth
+- AdcBitDepth:
+    value: PySpin.AdcBitDepth_Bit14
