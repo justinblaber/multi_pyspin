@@ -16,9 +16,6 @@ import PySpin #pylint: disable=import-error
 # Default values
 CAM_PRIMARY = None
 CAM_SECONDARY = None
-CAM_FRAME_RATE = None
-CAM_EXPOSURE = None
-CAM_GAIN = None
 
 # ------------------- #
 # "static" functions  #
@@ -39,10 +36,10 @@ def __cam_node_cmd(cam, cam_attr_str, cam_method_str, pyspin_mode_str, cam_metho
                            pyspin_mode_str + '".')
 
     # Print command info
-    info_str = 'Executing: "' + '.'.join([cam_attr_str, cam_method_str])
+    info_str = 'Executing: "' + '.'.join([cam_attr_str, cam_method_str] + '(')
     if cam_method_arg:
-        info_str += '(' + str(cam_method_arg) + ')'
-    print(info_str + '"')
+        info_str += str(cam_method_arg)
+    print(info_str + ')"')
 
     # Format command argument in case it's a string containing a PySpin attribute
     if cam_method_arg and isinstance(cam_method_arg, str):
@@ -82,43 +79,50 @@ def __find_cam(cam_serial_match):
 
     # Check to see if match was found
     if not cam_match:
-        raise RuntimeError('Could not find camera with serial: "' + str(cam_serial_match) +
-                           '". Serial is either wrong or camera was busy.')
+        raise RuntimeError('Could not find camera with serial: "' + str(cam_serial_match) + '".')
 
     return cam_match
 
-def __init_cam(cam, yaml_path):
-    """ initializes input camera given node command list in yaml file """
+def __init_cam(cam, yaml_path=None):
+    """ initializes input camera given optional node command list yaml file """
 
-    # Load yaml file then run commands specified in the yaml file
-    with open(yaml_path, 'rb') as file:
-        node_cmd_list = yaml.load(file)
-        for node_cmd in node_cmd_list:
-            # Get camera attribute string
-            cam_attr_str = list(node_cmd.keys())
-            if len(cam_attr_str) == 1:
-                cam_attr_str = cam_attr_str[0]
-                cam_method_arg = node_cmd[cam_attr_str]
-                if not cam_method_arg:
-                    # If no argument is specified, then its assumed this is an "Execute"
-                    __cam_node_cmd(cam, cam_attr_str, 'Execute', 'WO')
-                else:
-                    # Make sure only key is a string named "value"
-                    cam_method_arg_key = list(cam_method_arg.keys())
-                    if len(cam_method_arg_key) == 1 and cam_method_arg_key[0] == 'value':
-                        # If argument is provided, its assumed this is a "SetValue"
-                        __cam_node_cmd(cam,
-                                       cam_attr_str,
-                                       'SetValue',
-                                       'RW',
-                                       cam_method_arg[cam_method_arg_key[0]])
+    if yaml_path and not os.path.isfile(yaml_path):
+        raise RuntimeError('"' + yaml_path + '" could not be found!')
+
+    # Must Init() camera first
+    cam.Init()
+
+    # Load yaml file (if provided) then run commands specified in the yaml file
+    if yaml_path:
+        with open(yaml_path, 'rb') as file:
+            node_cmd_list = yaml.load(file)
+            for node_cmd in node_cmd_list:
+                # Get camera attribute string
+                cam_attr_str = list(node_cmd.keys())
+                if len(cam_attr_str) == 1:
+                    cam_attr_str = cam_attr_str[0]
+                    cam_method_arg = node_cmd[cam_attr_str]
+                    if not cam_method_arg:
+                        # If no argument is specified, then its assumed this is an "Execute"
+                        __cam_node_cmd(cam, cam_attr_str, 'Execute', 'WO')
                     else:
-                        raise RuntimeError('Only a single argument key named "value" is '
-                                           'supported; For camera attribute: "' + cam_attr_str +
-                                           '" the following was set: ' + str(cam_method_arg_key))
-            else:
-                raise RuntimeError('Only one camera attribute per "tick" is supported. Please ' +
-                                   'fix: ' + str(cam_attr_str))
+                        # Make sure only key is a string named "value"
+                        cam_method_arg_key = list(cam_method_arg.keys())
+                        if len(cam_method_arg_key) == 1 and cam_method_arg_key[0] == 'value':
+                            # If argument is provided, its assumed this is a "SetValue"
+                            __cam_node_cmd(cam,
+                                           cam_attr_str,
+                                           'SetValue',
+                                           'RW',
+                                           cam_method_arg[cam_method_arg_key[0]])
+                        else:
+                            raise RuntimeError('Only a single argument key named "value" is '
+                                               'supported; For camera attribute: "' + cam_attr_str +
+                                               '" the following was set: ' +
+                                               str(cam_method_arg_key))
+                else:
+                    raise RuntimeError('Only one camera attribute per "tick" is supported. '
+                                       'Please fix: ' + str(cam_attr_str))
 
 # ------------------- #
 # "public" functions  #
@@ -136,80 +140,113 @@ def find_secondary(cam_serial):
 
     CAM_SECONDARY = __find_cam(cam_serial)
 
-def init_primary(yaml_path):
-    """ Initializes primary camera using yaml file """
+def init_primary(yaml_path=None):
+    """ Initializes primary camera using optional yaml file """
     global CAM_PRIMARY
 
     if not CAM_PRIMARY:
         raise RuntimeError('Primary camera has not been found yet!')
 
-    if not os.path.isfile(yaml_path):
-        raise RuntimeError('"' + yaml_path + '" could not be found!')
-
     __init_cam(CAM_PRIMARY, yaml_path)
 
-def init_secondary(yaml_path):
-    """ Initializes secondary camera using yaml file """
+def init_secondary(yaml_path=None):
+    """ Initializes secondary camera using optional yaml file """
     global CAM_SECONDARY
 
     if not CAM_SECONDARY:
         raise RuntimeError('Secondary camera has not been found yet!')
 
-    if not os.path.isfile(yaml_path):
-        raise RuntimeError('"' + yaml_path + '" could not be found!')
-
     __init_cam(CAM_SECONDARY, yaml_path)
 
+def start_acquisition_primary():
+    """ Starts acquisition of primary camera """
+    global CAM_PRIMARY
 
+    if not CAM_PRIMARY:
+        raise RuntimeError('Primary camera has not been found yet!')
 
-"""
-def __deinit_secondary(cam):
+    CAM_PRIMARY.BeginAcquisition()
 
-    # Execute the following in the following order
-    cmd_list = [
-        ['EndAcquisition',                             None,                                         None], # Ends acquisition
-        ['UserSetSelector.SetValue',                   'PySpin.UserSetDefault_Default',              'RW'], # Set default user set
-        ['UserSetLoad.Execute',                        None,                                         'WO'], # Load default user set
-        ['DeInit',                                     None,                                         None], # De-initializes camera
-    ]
-    __cam_exec_cmd_list(cam, cmd_list)
+def start_acquisition_secondary():
+    """ Starts acquisition of secondary camera """
+    global CAM_SECONDARY
 
-def __deinit_primary(cam):
+    if not CAM_SECONDARY:
+        raise RuntimeError('Secondary camera has not been found yet!')
 
-    # Execute the following in the following order
-    cmd_list = [
-        ['EndAcquisition',                             None,                                         None], # Ends acquisition
-        ['UserSetSelector.SetValue',                   'PySpin.UserSetDefault_Default',              'RW'], # Set default user set
-        ['UserSetLoad.Execute',                        None,                                         'WO'], # Load default user set
-        ['DeInit',                                     None,                                         None], # De-initializes camera
-    ]
-    __cam_exec_cmd_list(cam, cmd_list)
+    CAM_SECONDARY.BeginAcquisition()
 
-    # Initialize secondary camera first to put it into trigger mode which will wait on primary camera
-    print("Initializing secondary camera...")
-    __init_secondary(CAM_SECONDARY, **CAM_PARAMS_DICT)
-
-    # Initialize primary camera next
-    print("Initializing primary camera...")
-    __init_primary(CAM_PRIMARY, **CAM_PARAMS_DICT)
-
-def deinit():
+def set_frame_rate(frame_rate):
+    """ Sets frame rate for both cameras """
     global CAM_PRIMARY, CAM_SECONDARY
 
-    print("De-initializing cameras...")
+    if not CAM_PRIMARY:
+        raise RuntimeError('Primary camera has not been found yet!')
 
-    # De-initialize secondary camera if it was set
-    if CAM_SECONDARY:
-        print("De-initializing secondary camera...")
-        __deinit_secondary(CAM_SECONDARY)
+    if not CAM_SECONDARY:
+        raise RuntimeError('Secondary camera has not been found yet!')
 
-    # De-initialize primary camera if it was set
-    if CAM_PRIMARY:
-        print("De-initializing primary camera...")
-        __deinit_primary(CAM_PRIMARY)
+    __cam_node_cmd(CAM_PRIMARY, 'AcquisitionFrameRate', 'SetValue', 'RW', frame_rate)
+    __cam_node_cmd(CAM_SECONDARY, 'AcquisitionFrameRate', 'SetValue', 'RW', frame_rate)
 
-    # Remove references to cameras
-    CAM_SECONDARY = None
-    CAM_PRIMARY = None
+def set_exposure(exposure):
+    """ Sets exposure for both cameras """
+    global CAM_PRIMARY, CAM_SECONDARY
 
-"""
+    if not CAM_PRIMARY:
+        raise RuntimeError('Primary camera has not been found yet!')
+
+    if not CAM_SECONDARY:
+        raise RuntimeError('Secondary camera has not been found yet!')
+
+    __cam_node_cmd(CAM_PRIMARY, 'ExposureTime', 'SetValue', 'RW', exposure)
+    __cam_node_cmd(CAM_SECONDARY, 'ExposureTime', 'SetValue', 'RW', exposure)
+
+def set_gain(gain):
+    """ Sets gain for both cameras """
+    global CAM_PRIMARY, CAM_SECONDARY
+
+    if not CAM_PRIMARY:
+        raise RuntimeError('Primary camera has not been found yet!')
+
+    if not CAM_SECONDARY:
+        raise RuntimeError('Secondary camera has not been found yet!')
+
+    __cam_node_cmd(CAM_PRIMARY, 'Gain', 'SetValue', 'RW', gain)
+    __cam_node_cmd(CAM_SECONDARY, 'Gain', 'SetValue', 'RW', gain)
+
+def end_acquisition_primary():
+    """ Ends acquisition of primary camera """
+    global CAM_PRIMARY
+
+    if not CAM_PRIMARY:
+        raise RuntimeError('Primary camera has not been found yet!')
+
+    CAM_PRIMARY.EndAcquisition()
+
+def end_acquisition_secondary():
+    """ Ends acquisition of secondary camera """
+    global CAM_SECONDARY
+
+    if not CAM_SECONDARY:
+        raise RuntimeError('Secondary camera has not been found yet!')
+
+    CAM_SECONDARY.EndAcquisition()
+
+def deinit_primary():
+    """ De-initializes primary camera """
+    global CAM_PRIMARY
+
+    if not CAM_PRIMARY:
+        raise RuntimeError('Primary camera has not been found yet!')
+
+    CAM_PRIMARY.DeInit()
+
+def deinit_secondary():
+    """ De-initializes secondary camera """
+    global CAM_SECONDARY
+
+    if not CAM_SECONDARY:
+        raise RuntimeError('Secondary camera has not been found yet!')
+
+    CAM_SECONDARY.DeInit()
