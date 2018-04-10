@@ -2,20 +2,19 @@
 
 """ 'singleton' for setting up stereo cameras with PySpin library """
 
-# pylint: disable=global-statement
-
 import os
-import yaml
+from warnings import warn
 
-import PySpin #pylint: disable=import-error
+import yaml
+import PySpin
 
 # ------------------- #
 # "attributes"        #
 # ------------------- #
 
-# Default values
-CAM_PRIMARY = None
-CAM_SECONDARY = None
+# cameras must be found before they are used
+__CAM_PRIMARY = None
+__CAM_SECONDARY = None
 
 # ------------------- #
 # "static" functions  #
@@ -124,129 +123,178 @@ def __init_cam(cam, yaml_path=None):
                     raise RuntimeError('Only one camera attribute per "tick" is supported. '
                                        'Please fix: ' + str(cam_attr_str))
 
+def __get_image(cam):
+    """ Gets image from input camera """
+
+    image = cam.GetNextImage()
+
+    # Initialize image data
+    image_data = None
+
+    # Ensure image is complete
+    if not image.IsIncomplete():
+        # Reshape into array
+        image_data = image.GetData()
+        image_data = image_data.reshape(image.GetHeight(), image.GetWidth())
+
+        # Release image
+        image.Release()
+
+    return image_data
+
 # ------------------- #
 # "public" functions  #
 # ------------------- #
 
 def find_pimary(cam_serial):
     """ Finds primary camera """
-    global CAM_PRIMARY
+    global __CAM_PRIMARY # pylint: disable=global-statement
 
-    CAM_PRIMARY = __find_cam(cam_serial)
+    __CAM_PRIMARY = __find_cam(cam_serial)
 
 def find_secondary(cam_serial):
     """ Finds secondary camera """
-    global CAM_SECONDARY
+    global __CAM_SECONDARY # pylint: disable=global-statement
 
-    CAM_SECONDARY = __find_cam(cam_serial)
+    __CAM_SECONDARY = __find_cam(cam_serial)
 
 def init_primary(yaml_path=None):
     """ Initializes primary camera using optional yaml file """
-    global CAM_PRIMARY
 
-    if not CAM_PRIMARY:
-        raise RuntimeError('Primary camera has not been found yet!')
-
-    __init_cam(CAM_PRIMARY, yaml_path)
+    __init_cam(get_primary(), yaml_path)
 
 def init_secondary(yaml_path=None):
     """ Initializes secondary camera using optional yaml file """
-    global CAM_SECONDARY
 
-    if not CAM_SECONDARY:
-        raise RuntimeError('Secondary camera has not been found yet!')
-
-    __init_cam(CAM_SECONDARY, yaml_path)
+    __init_cam(get_secondary(), yaml_path)
 
 def start_acquisition_primary():
     """ Starts acquisition of primary camera """
-    global CAM_PRIMARY
 
-    if not CAM_PRIMARY:
-        raise RuntimeError('Primary camera has not been found yet!')
-
-    CAM_PRIMARY.BeginAcquisition()
+    get_primary().BeginAcquisition()
 
 def start_acquisition_secondary():
     """ Starts acquisition of secondary camera """
-    global CAM_SECONDARY
 
-    if not CAM_SECONDARY:
-        raise RuntimeError('Secondary camera has not been found yet!')
-
-    CAM_SECONDARY.BeginAcquisition()
-
-def set_frame_rate(frame_rate):
-    """ Sets frame rate for both cameras """
-    global CAM_PRIMARY, CAM_SECONDARY
-
-    if not CAM_PRIMARY:
-        raise RuntimeError('Primary camera has not been found yet!')
-
-    if not CAM_SECONDARY:
-        raise RuntimeError('Secondary camera has not been found yet!')
-
-    __cam_node_cmd(CAM_PRIMARY, 'AcquisitionFrameRate', 'SetValue', 'RW', frame_rate)
-    __cam_node_cmd(CAM_SECONDARY, 'AcquisitionFrameRate', 'SetValue', 'RW', frame_rate)
-
-def set_exposure(exposure):
-    """ Sets exposure for both cameras """
-    global CAM_PRIMARY, CAM_SECONDARY
-
-    if not CAM_PRIMARY:
-        raise RuntimeError('Primary camera has not been found yet!')
-
-    if not CAM_SECONDARY:
-        raise RuntimeError('Secondary camera has not been found yet!')
-
-    __cam_node_cmd(CAM_PRIMARY, 'ExposureTime', 'SetValue', 'RW', exposure)
-    __cam_node_cmd(CAM_SECONDARY, 'ExposureTime', 'SetValue', 'RW', exposure)
-
-def set_gain(gain):
-    """ Sets gain for both cameras """
-    global CAM_PRIMARY, CAM_SECONDARY
-
-    if not CAM_PRIMARY:
-        raise RuntimeError('Primary camera has not been found yet!')
-
-    if not CAM_SECONDARY:
-        raise RuntimeError('Secondary camera has not been found yet!')
-
-    __cam_node_cmd(CAM_PRIMARY, 'Gain', 'SetValue', 'RW', gain)
-    __cam_node_cmd(CAM_SECONDARY, 'Gain', 'SetValue', 'RW', gain)
+    get_secondary().BeginAcquisition()
 
 def end_acquisition_primary():
     """ Ends acquisition of primary camera """
-    global CAM_PRIMARY
 
-    if not CAM_PRIMARY:
-        raise RuntimeError('Primary camera has not been found yet!')
-
-    CAM_PRIMARY.EndAcquisition()
+    get_primary().EndAcquisition()
 
 def end_acquisition_secondary():
     """ Ends acquisition of secondary camera """
-    global CAM_SECONDARY
 
-    if not CAM_SECONDARY:
-        raise RuntimeError('Secondary camera has not been found yet!')
-
-    CAM_SECONDARY.EndAcquisition()
+    get_secondary().EndAcquisition()
 
 def deinit_primary():
     """ De-initializes primary camera """
-    global CAM_PRIMARY
 
-    if not CAM_PRIMARY:
-        raise RuntimeError('Primary camera has not been found yet!')
-
-    CAM_PRIMARY.DeInit()
+    get_primary().DeInit()
 
 def deinit_secondary():
     """ De-initializes secondary camera """
-    global CAM_SECONDARY
 
-    if not CAM_SECONDARY:
+    get_secondary().DeInit()
+
+def set_frame_rate(frame_rate):
+    """ Sets frame rate for both cameras """
+
+    __cam_node_cmd(get_primary(), 'AcquisitionFrameRate', 'SetValue', 'RW', frame_rate)
+    __cam_node_cmd(get_secondary(), 'AcquisitionFrameRate', 'SetValue', 'RW', frame_rate)
+
+def set_gain(gain):
+    """ Sets gain for both cameras """
+
+    __cam_node_cmd(get_primary(), 'Gain', 'SetValue', 'RW', gain)
+    __cam_node_cmd(get_secondary(), 'Gain', 'SetValue', 'RW', gain)
+
+def set_exposure(exposure):
+    """ Sets exposure for both cameras """
+
+    __cam_node_cmd(get_primary(), 'ExposureTime', 'SetValue', 'RW', exposure)
+    __cam_node_cmd(get_secondary(), 'ExposureTime', 'SetValue', 'RW', exposure)
+
+def get_primary():
+    """ Returns primary camera """
+
+    if not __CAM_PRIMARY:
+        raise RuntimeError('Primary camera has not been found yet!')
+
+    return __CAM_PRIMARY
+
+def get_secondary():
+    """ Returns secondary camera """
+
+    if not __CAM_SECONDARY:
         raise RuntimeError('Secondary camera has not been found yet!')
 
-    CAM_SECONDARY.DeInit()
+    return __CAM_SECONDARY
+
+def get_frame_rate():
+    """ Gets frame rate """
+
+    frame_rate_primary = float(__cam_node_cmd(get_primary(),
+                                              'AcquisitionFrameRate',
+                                              'GetValue',
+                                              'RW'))
+    frame_rate_secondary = float(__cam_node_cmd(get_secondary(),
+                                                'AcquisitionFrameRate',
+                                                'GetValue',
+                                                'RW'))
+
+    if frame_rate_primary != frame_rate_secondary:
+        warn('Primary and secondary frame rate are different: ' +
+             str([frame_rate_primary, frame_rate_secondary]) + ' ' +
+             '. Returning the average value')
+
+        return (frame_rate_primary+frame_rate_secondary)/2
+
+    return frame_rate_primary
+
+def get_gain():
+    """ Gets gain """
+
+    gain_primary = float(__cam_node_cmd(get_primary(), 'Gain', 'GetValue', 'RW'))
+    gain_secondary = float(__cam_node_cmd(get_secondary(), 'Gain', 'GetValue', 'RW'))
+
+    if gain_primary != gain_secondary:
+        warn('Primary and secondary gain are different: ' +
+             str([gain_primary, gain_secondary]) + ' ' +
+             '. Returning the average value')
+
+        return (gain_primary+gain_secondary)/2
+
+    return gain_primary
+
+def get_exposure():
+    """ Gets exposure """
+
+    exposure_primary = float(__cam_node_cmd(get_primary(), 'ExposureTime', 'GetValue', 'RW'))
+    exposure_secondary = float(__cam_node_cmd(get_secondary(), 'ExposureTime', 'GetValue', 'RW'))
+
+    if exposure_primary != exposure_secondary:
+        warn('Primary and secondary exposure are different: ' +
+             str([exposure_primary, exposure_secondary]) + ' ' +
+             '. Returning the average value')
+
+        return (exposure_primary+exposure_secondary)/2
+
+    return exposure_primary
+
+def get_image_primary():
+    """ Gets image from primary camera """
+
+    import numpy as np
+    return np.random.rand(1536, 2048)
+
+    #return __get_image(get_primary())
+
+def get_image_secondary():
+    """ Gets image from secondary camera """
+
+    import numpy as np
+    return np.random.rand(1536, 2048)
+
+    #return __get_image(get_secondary())
