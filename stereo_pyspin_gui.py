@@ -14,12 +14,6 @@ from matplotlib.widgets import Slider
 
 import stereo_pyspin
 
-__LOCK_PRIMARY = threading.Lock()
-__LOCK_SECONDARY = threading.Lock()
-
-__IMAGE_PRIMARY = None
-__IMAGE_SECONDARY = None
-
 def cam_plot(fig, pos, options_height, padding, cam_str): # pylint: disable=too-many-locals
     """ Creates 'camera' plot; make one of these per camera """
 
@@ -156,72 +150,78 @@ def stereo_gui(): # pylint: disable=too-many-locals
             'gain_slider': gain_slider,
             'exposure_slider': exposure_slider}
 
-def get_image_primary(fig):
+# -------------- #
+# Set up GUI     #
+# ---------------#
+
+__GUI_DICT = stereo_gui()
+
+# -------------- #
+# Set up streams #
+# -------------- #
+
+__IMAGE_PRIMARY_DICT = {'img': None, 'imshow': None, 'imshow_size': None}
+__IMAGE_SECONDARY_DICT = {'img': None, 'imshow': None, 'imshow_size': None}
+
+def stream_image_primary():
     """ stream update of primary image """
-    global __IMAGE_PRIMARY # pylint: disable=global-statement
+    while plt.fignum_exists(__GUI_DICT['fig'].number):
+        __IMAGE_PRIMARY_DICT['img'] = stereo_pyspin.get_image_primary()
 
-    while plt.fignum_exists(fig.number):
-        with __LOCK_PRIMARY:
-            __IMAGE_PRIMARY = stereo_pyspin.get_image_primary()
-
-def get_image_secondary(fig):
+def stream_image_secondary():
     """ stream update of secondary image """
-    global __IMAGE_SECONDARY # pylint: disable=global-statement
+    while plt.fignum_exists(__GUI_DICT['fig'].number):
+        __IMAGE_SECONDARY_DICT['img'] = stereo_pyspin.get_image_secondary()
 
-    while plt.fignum_exists(fig.number):
-        with __LOCK_SECONDARY:
-            __IMAGE_SECONDARY = stereo_pyspin.get_image_secondary()
+__THREAD_PRIMARY = threading.Thread(target=stream_image_primary)
+__THREAD_SECONDARY = threading.Thread(target=stream_image_secondary)
+
+# -------------- #
+# Start gui      #
+# -------------- #
+
+def plot_image(image_dict, image_axes):
+    """ plots image somewhat fast """
+
+    if image_dict['img'] is not None:
+        # Make a deep copy in case image gets changed
+        image = image_dict['img']
+
+        if image.shape == image_dict['imshow_size']:
+            # Can just "set_data" since data is the same size
+            image_dict['imshow'].set_data(image)
+            print('set_data')
+        else:
+            # Must reset axes and re-imshow()
+            image_axes.cla()
+            image_dict['imshow'] = image_axes.imshow(image, cmap='gray')
+            image_dict['imshow_size'] = image.shape
+            print('imshow')
+
+    return image_dict
 
 def main():
     """ Main program """
+    global __IMAGE_PRIMARY_DICT, __IMAGE_SECONDARY_DICT # pylint: disable=global-statement
 
-    # Create gui
-    stereo_gui_dict = stereo_gui()
-
-    # Set up threads
-    stream_primary_thread = threading.Thread(target=get_image_primary,
-                                             args=(stereo_gui_dict['fig'],))
-    stream_secondary_thread = threading.Thread(target=get_image_secondary,
-                                               args=(stereo_gui_dict['fig'],))
-
-    # Start threads
-    stream_primary_thread.start()
-    stream_secondary_thread.start()
+    # Start streams
+    __THREAD_PRIMARY.start()
+    __THREAD_SECONDARY.start()
 
     # Set up streams while figure exists
-    while plt.fignum_exists(stereo_gui_dict['fig'].number):
-        # Clear axes
-        stereo_gui_dict['cam_plot_primary_dict']['image_axes'].cla()
-        stereo_gui_dict['cam_plot_primary_dict']['hist_axes'].cla()
-        stereo_gui_dict['cam_plot_secondary_dict']['image_axes'].cla()
-        stereo_gui_dict['cam_plot_secondary_dict']['hist_axes'].cla()
+    while plt.fignum_exists(__GUI_DICT['fig'].number):
+        __IMAGE_PRIMARY_DICT = plot_image(__IMAGE_PRIMARY_DICT,
+                                          __GUI_DICT['cam_plot_primary_dict']['image_axes'])
+        __IMAGE_SECONDARY_DICT = plot_image(__IMAGE_SECONDARY_DICT,
+                                            __GUI_DICT['cam_plot_secondary_dict']['image_axes'])
 
-        # Display images
-        with __LOCK_PRIMARY:
-            if __IMAGE_PRIMARY is not None:
-                stereo_gui_dict['cam_plot_primary_dict']['image_axes'].imshow(__IMAGE_PRIMARY,
-                                                                              cmap='gray')
-                stereo_gui_dict['cam_plot_primary_dict']['hist_axes'].hist(__IMAGE_PRIMARY.ravel(),
-                                                                           bins=256,
-                                                                           fc='k',
-                                                                           ec='k')
-
-        with __LOCK_SECONDARY:
-            if __IMAGE_SECONDARY is not None:
-                stereo_gui_dict['cam_plot_secondary_dict']['image_axes'].imshow(__IMAGE_SECONDARY,
-                                                                                cmap='gray')
-                stereo_gui_dict['cam_plot_secondary_dict']['hist_axes'].hist(__IMAGE_SECONDARY.ravel(),
-                                                                             bins=256,
-                                                                             fc='k',
-                                                                             ec='k')
-
-        # Stream as fast as possible so use smallest number
         plt.pause(sys.float_info.min)
 
     print('Exiting...')
 
-    stream_primary_thread.join()
-    stream_secondary_thread.join()
+    # Cleanup
+    __THREAD_PRIMARY.join()
+    __THREAD_SECONDARY.join()
 
     return 0
 
