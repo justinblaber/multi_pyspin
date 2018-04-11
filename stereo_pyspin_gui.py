@@ -160,18 +160,40 @@ __GUI_DICT = stereo_gui()
 # Set up streams #
 # -------------- #
 
-__IMAGE_PRIMARY_DICT = {'img': None, 'imshow': None, 'imshow_size': None}
-__IMAGE_SECONDARY_DICT = {'img': None, 'imshow': None, 'imshow_size': None}
+__IMSHOW_PRIMARY_DICT = {'imshow': None, 'imshow_size': None}
+__IMSHOW_SECONDARY_DICT = {'imshow': None, 'imshow_size': None}
+
+def plot_image(image, imshow_dict, image_axes):
+    """ plots image somewhat fast """
+    if image is not None:
+        if image.shape == imshow_dict['imshow_size']:
+            # Can just "set_data" since data is the same size
+            imshow_dict['imshow'].set_data(image)
+        else:
+            # Must reset axes and re-imshow()
+            image_axes.cla()
+            imshow_dict['imshow'] = image_axes.imshow(image, cmap='gray')
+            imshow_dict['imshow_size'] = image.shape
+
+    return imshow_dict
 
 def stream_image_primary():
     """ stream update of primary image """
+    global __IMSHOW_PRIMARY_DICT # pylint: disable=global-statement
+
     while plt.fignum_exists(__GUI_DICT['fig'].number):
-        __IMAGE_PRIMARY_DICT['img'] = stereo_pyspin.get_image_primary()
+        __IMSHOW_PRIMARY_DICT = plot_image(stereo_pyspin.get_image_primary(),
+                                           __IMSHOW_PRIMARY_DICT,
+                                           __GUI_DICT['cam_plot_primary_dict']['image_axes'])
 
 def stream_image_secondary():
     """ stream update of secondary image """
+    global __IMSHOW_SECONDARY_DICT # pylint: disable=global-statement
+
     while plt.fignum_exists(__GUI_DICT['fig'].number):
-        __IMAGE_SECONDARY_DICT['img'] = stereo_pyspin.get_image_secondary()
+        __IMSHOW_SECONDARY_DICT = plot_image(stereo_pyspin.get_image_secondary(),
+                                             __IMSHOW_SECONDARY_DICT,
+                                             __GUI_DICT['cam_plot_secondary_dict']['image_axes'])
 
 __THREAD_PRIMARY = threading.Thread(target=stream_image_primary)
 __THREAD_SECONDARY = threading.Thread(target=stream_image_secondary)
@@ -180,48 +202,36 @@ __THREAD_SECONDARY = threading.Thread(target=stream_image_secondary)
 # Start gui      #
 # -------------- #
 
-def plot_image(image_dict, image_axes):
-    """ plots image somewhat fast """
-
-    if image_dict['img'] is not None:
-        # Make a deep copy in case image gets changed
-        image = image_dict['img']
-
-        if image.shape == image_dict['imshow_size']:
-            # Can just "set_data" since data is the same size
-            image_dict['imshow'].set_data(image)
-            print('set_data')
-        else:
-            # Must reset axes and re-imshow()
-            image_axes.cla()
-            image_dict['imshow'] = image_axes.imshow(image, cmap='gray')
-            image_dict['imshow_size'] = image.shape
-            print('imshow')
-
-    return image_dict
-
 def main():
     """ Main program """
-    global __IMAGE_PRIMARY_DICT, __IMAGE_SECONDARY_DICT # pylint: disable=global-statement
+    global __IMSHOW_PRIMARY_DICT, __IMSHOW_SECONDARY_DICT, __GUI_DICT # pylint: disable=global-statement
 
     # Start streams
     __THREAD_PRIMARY.start()
     __THREAD_SECONDARY.start()
 
-    # Set up streams while figure exists
+    # Update plot while figure exists
     while plt.fignum_exists(__GUI_DICT['fig'].number):
-        __IMAGE_PRIMARY_DICT = plot_image(__IMAGE_PRIMARY_DICT,
-                                          __GUI_DICT['cam_plot_primary_dict']['image_axes'])
-        __IMAGE_SECONDARY_DICT = plot_image(__IMAGE_SECONDARY_DICT,
-                                            __GUI_DICT['cam_plot_secondary_dict']['image_axes'])
-
-        plt.pause(sys.float_info.min)
+        try:
+            fps = 30
+            plt.pause(1/fps)
+        except: # pylint: disable=bare-except
+            if plt.fignum_exists(__GUI_DICT['fig'].number):
+                # Only re-raise error if figure is still open
+                raise
 
     print('Exiting...')
 
     # Cleanup
     __THREAD_PRIMARY.join()
     __THREAD_SECONDARY.join()
+
+    # For some reason manually deleting these prevents an error on figure close.
+    # There might be some circular reference issue which is causing the
+    # destructor to mess up...
+    del __IMSHOW_PRIMARY_DICT
+    del __IMSHOW_SECONDARY_DICT
+    del __GUI_DICT
 
     return 0
 
