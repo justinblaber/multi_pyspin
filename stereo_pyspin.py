@@ -287,7 +287,7 @@ def get_image_primary():
     """ Gets image from primary camera """
 
     import numpy as np
-    return np.random.rand(1536, 2048)
+    return np.random.rand(1536, 2048)*255
 
     #return __get_image(get_primary())
 
@@ -295,6 +295,6 @@ def get_image_secondary():
     """ Gets image from secondary camera """
 
     import numpy as np
-    return np.random.rand(1536, 2048)
+    return np.random.rand(1536, 2048)*255
 
     #return __get_image(get_secondary())

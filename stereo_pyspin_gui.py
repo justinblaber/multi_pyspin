@@ -7,6 +7,8 @@
 import sys
 import threading
 
+import numpy as np
+
 import matplotlib.pyplot as plt
 from matplotlib.widgets import TextBox
 from matplotlib.widgets import Button
@@ -14,13 +16,26 @@ from matplotlib.widgets import Slider
 
 import stereo_pyspin
 
+# -------------- #
+# Callbacks      #
+# -------------- #
+
+def find_primary(event): # pylint: disable=unused-argument
+    """ Finds primary camera """
+
+    print('find primary')
+
+# -------------- #
+# GUI            #
+# -------------- #
+
 def cam_plot(fig, pos, options_height, padding, cam_str): # pylint: disable=too-many-locals
     """ Creates 'camera' plot; make one of these per camera """
 
     # Set main sizes
     num_options = 3
     residual_height = pos[3]-(3+num_options)*padding-num_options*options_height
-    image_height = residual_height*0.75
+    image_height = residual_height*0.85
     image_width = pos[2]-2*padding
     hist_height = residual_height-image_height
 
@@ -105,6 +120,7 @@ def stereo_gui(): # pylint: disable=too-many-locals
     # Primary camera plot
     cam_primary_pos = [0, cam_plot_height_offset, cam_plot_width, cam_plot_height]
     cam_plot_primary_dict = cam_plot(fig, cam_primary_pos, options_height, padding, 'Primary')
+    cam_plot_primary_dict['find_button'].on_clicked(find_primary)
 
     # Secondary camera plot
     cam_secondary_pos = [cam_primary_pos[0]+cam_primary_pos[2],
@@ -150,10 +166,6 @@ def stereo_gui(): # pylint: disable=too-many-locals
             'gain_slider': gain_slider,
             'exposure_slider': exposure_slider}
 
-# -------------- #
-# Set up GUI     #
-# ---------------#
-
 __GUI_DICT = stereo_gui()
 
 # -------------- #
@@ -162,9 +174,12 @@ __GUI_DICT = stereo_gui()
 
 __IMSHOW_PRIMARY_DICT = {'imshow': None, 'imshow_size': None}
 __IMSHOW_SECONDARY_DICT = {'imshow': None, 'imshow_size': None}
+__HIST_PRIMARY_DICT = {'bar': None}
+__HIST_SECONDARY_DICT = {'bar': None}
 
-def plot_image(image, imshow_dict, image_axes):
+def plot_image(image, image_axes, imshow_dict):
     """ plots image somewhat fast """
+
     if image is not None:
         if image.shape == imshow_dict['imshow_size']:
             # Can just "set_data" since data is the same size
@@ -172,28 +187,65 @@ def plot_image(image, imshow_dict, image_axes):
         else:
             # Must reset axes and re-imshow()
             image_axes.cla()
-            imshow_dict['imshow'] = image_axes.imshow(image, cmap='gray')
+            imshow_dict['imshow'] = image_axes.imshow(image, cmap='gray', vmin=0, vmax=256)
             imshow_dict['imshow_size'] = image.shape
+            image_axes.set_xticklabels([])
+            image_axes.set_yticklabels([])
+            image_axes.set_xticks([])
+            image_axes.set_yticks([])
 
     return imshow_dict
 
+def plot_hist(image, hist_axes, hist_dict):
+    """ plots histogram """
+
+    hist, bins = np.histogram(image.ravel(), normed=True, bins=256, range=(0, 255))
+    if hist_dict['bar'] is not None:
+        # Just reset height
+        for i, bar in enumerate(hist_dict['bar']): # pylint: disable=blacklisted-name
+            bar.set_height(hist[i])
+    else:
+        # Must reset axes and plot hist
+        hist_axes.cla()
+        hist_dict['bar'] = hist_axes.bar(bins[:-1], hist, color='k')
+        hist_axes.set_xticklabels([])
+        hist_axes.set_yticklabels([])
+        hist_axes.set_xticks([])
+        hist_axes.set_yticks([])
+
+    return hist_dict
+
 def stream_image_primary():
     """ stream update of primary image """
-    global __IMSHOW_PRIMARY_DICT # pylint: disable=global-statement
+    global __IMSHOW_PRIMARY_DICT, __HIST_PRIMARY_DICT # pylint: disable=global-statement
 
     while plt.fignum_exists(__GUI_DICT['fig'].number):
-        __IMSHOW_PRIMARY_DICT = plot_image(stereo_pyspin.get_image_primary(),
-                                           __IMSHOW_PRIMARY_DICT,
-                                           __GUI_DICT['cam_plot_primary_dict']['image_axes'])
+        # Get image
+        image = stereo_pyspin.get_image_primary()
+        # Plot image
+        __IMSHOW_PRIMARY_DICT = plot_image(image,
+                                           __GUI_DICT['cam_plot_primary_dict']['image_axes'],
+                                           __IMSHOW_PRIMARY_DICT)
+        # Plot histogram
+        __HIST_PRIMARY_DICT = plot_hist(image,
+                                        __GUI_DICT['cam_plot_primary_dict']['hist_axes'],
+                                        __HIST_PRIMARY_DICT)
 
 def stream_image_secondary():
     """ stream update of secondary image """
-    global __IMSHOW_SECONDARY_DICT # pylint: disable=global-statement
+    global __IMSHOW_SECONDARY_DICT, __HIST_SECONDARY_DICT # pylint: disable=global-statement
 
     while plt.fignum_exists(__GUI_DICT['fig'].number):
-        __IMSHOW_SECONDARY_DICT = plot_image(stereo_pyspin.get_image_secondary(),
-                                             __IMSHOW_SECONDARY_DICT,
-                                             __GUI_DICT['cam_plot_secondary_dict']['image_axes'])
+        # Get image
+        image = stereo_pyspin.get_image_secondary()
+        # Plot image
+        __IMSHOW_SECONDARY_DICT = plot_image(image,
+                                             __GUI_DICT['cam_plot_secondary_dict']['image_axes'],
+                                             __IMSHOW_SECONDARY_DICT)
+        # Plot histogram
+        __HIST_SECONDARY_DICT = plot_hist(image,
+                                          __GUI_DICT['cam_plot_secondary_dict']['hist_axes'],
+                                          __HIST_SECONDARY_DICT)
 
 __THREAD_PRIMARY = threading.Thread(target=stream_image_primary)
 __THREAD_SECONDARY = threading.Thread(target=stream_image_secondary)
