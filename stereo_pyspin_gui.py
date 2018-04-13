@@ -302,10 +302,12 @@ def stream_image_primary():
     while __STREAM_PRIMARY and plt.fignum_exists(__GUI_DICT['fig'].number):
         # Get image
         image = stereo_pyspin.get_image_primary()
+
         # Plot image
         __IMSHOW_PRIMARY_DICT = plot_image(image,
                                            __GUI_DICT['cam_plot_primary_dict']['image_axes'],
                                            __IMSHOW_PRIMARY_DICT)
+
         # Plot histogram
         __HIST_PRIMARY_DICT = plot_hist(image,
                                         __GUI_DICT['cam_plot_primary_dict']['hist_axes'],
@@ -318,10 +320,12 @@ def stream_image_secondary():
     while __STREAM_SECONDARY and plt.fignum_exists(__GUI_DICT['fig'].number):
         # Get image
         image = stereo_pyspin.get_image_secondary()
+
         # Plot image
         __IMSHOW_SECONDARY_DICT = plot_image(image,
                                              __GUI_DICT['cam_plot_secondary_dict']['image_axes'],
                                              __IMSHOW_SECONDARY_DICT)
+
         # Plot histogram
         __HIST_SECONDARY_DICT = plot_hist(image,
                                           __GUI_DICT['cam_plot_secondary_dict']['hist_axes'],
@@ -357,8 +361,8 @@ def main():
         __THREAD_SECONDARY.join()
 
     # For some reason manually deleting these prevents an error on figure close.
-    # There might be some circular reference issue which is causing the
-    # destructor to mess up...
+    # There might be some circular reference issue which is causing destructor(s)
+    # to mess up...
     del __IMSHOW_PRIMARY_DICT
     del __IMSHOW_SECONDARY_DICT
     del __GUI_DICT
