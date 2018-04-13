@@ -6,6 +6,7 @@
 
 import sys
 import threading
+from tkinter import messagebox
 
 import numpy as np
 
@@ -23,7 +24,66 @@ import stereo_pyspin
 def find_primary(event): # pylint: disable=unused-argument
     """ Finds primary camera """
 
-    print('find primary')
+    try:
+        stereo_pyspin.find_pimary(__GUI_DICT['cam_plot_primary_dict']['find_text'].text)
+    except Exception as e: # pylint: disable=broad-except,invalid-name
+        messagebox.showerror("Error", str(e))
+
+def find_secondary(event): # pylint: disable=unused-argument
+    """ Finds secondary camera """
+
+    try:
+        stereo_pyspin.find_pimary(__GUI_DICT['cam_plot_secondary_dict']['find_text'].text)
+    except Exception as e: # pylint: disable=broad-except,invalid-name
+        messagebox.showerror("Error", str(e))
+
+def init_primary(event): # pylint: disable=unused-argument
+    """ Initializes primary camera """
+
+    try:
+        stereo_pyspin.init_primary(__GUI_DICT['cam_plot_primary_dict']['init_text'].text)
+    except Exception as e: # pylint: disable=broad-except,invalid-name
+        messagebox.showerror("Error", str(e))
+
+def init_secondary(event): # pylint: disable=unused-argument
+    """ Initializes secondary camera """
+
+    try:
+        stereo_pyspin.init_secondary(__GUI_DICT['cam_plot_secondary_dict']['init_text'].text)
+    except Exception as e: # pylint: disable=broad-except,invalid-name
+        messagebox.showerror("Error", str(e))
+
+def start_acquisition_primary(event): # pylint: disable=unused-argument
+    """ Starts acquisition of primary camera """
+    global __THREAD_PRIMARY, __STREAM_PRIMARY # pylint: disable=global-statement
+
+    __STREAM_PRIMARY = True
+    __THREAD_PRIMARY = threading.Thread(target=stream_image_primary)
+    __THREAD_PRIMARY.start()
+
+def start_acquisition_secondary(event): # pylint: disable=unused-argument
+    """ Starts acquisition of secondary camera """
+    global __THREAD_SECONDARY, __STREAM_SECONDARY # pylint: disable=global-statement
+
+    __STREAM_SECONDARY = True
+    __THREAD_SECONDARY = threading.Thread(target=stream_image_secondary)
+    __THREAD_SECONDARY.start()
+
+def stop_acquisition_primary(event): # pylint: disable=unused-argument
+    """ Starts acquisition of primary camera """
+    global __THREAD_PRIMARY, __STREAM_PRIMARY # pylint: disable=global-statement
+
+    __STREAM_PRIMARY = False
+    __THREAD_PRIMARY.join()
+    __THREAD_PRIMARY = None
+
+def stop_acquisition_secondary(event): # pylint: disable=unused-argument
+    """ Stops acquisition of secondary camera """
+    global __THREAD_SECONDARY, __STREAM_SECONDARY # pylint: disable=global-statement
+
+    __STREAM_SECONDARY = False
+    __THREAD_SECONDARY.join()
+    __THREAD_SECONDARY = None
 
 # -------------- #
 # GUI            #
@@ -118,9 +178,18 @@ def stereo_gui(): # pylint: disable=too-many-locals
     cam_plot_height = 1-cam_plot_height_offset
 
     # Primary camera plot
-    cam_primary_pos = [0, cam_plot_height_offset, cam_plot_width, cam_plot_height]
+    cam_primary_pos = [0,
+                       cam_plot_height_offset,
+                       cam_plot_width,
+                       cam_plot_height]
     cam_plot_primary_dict = cam_plot(fig, cam_primary_pos, options_height, padding, 'Primary')
+    # Set initial values
+    cam_plot_primary_dict['init_text'].set_val('primary.yaml')
+    # Set callbacks
     cam_plot_primary_dict['find_button'].on_clicked(find_primary)
+    cam_plot_primary_dict['init_button'].on_clicked(init_primary)
+    cam_plot_primary_dict['start_acquisition_button'].on_clicked(start_acquisition_primary)
+    cam_plot_primary_dict['stop_acquisition_button'].on_clicked(stop_acquisition_primary)
 
     # Secondary camera plot
     cam_secondary_pos = [cam_primary_pos[0]+cam_primary_pos[2],
@@ -128,6 +197,13 @@ def stereo_gui(): # pylint: disable=too-many-locals
                          cam_plot_width,
                          cam_plot_height]
     cam_plot_secondary_dict = cam_plot(fig, cam_secondary_pos, options_height, padding, 'Secondary')
+    # Set initial values
+    cam_plot_secondary_dict['init_text'].set_val('secondary.yaml')
+    # Set callbacks
+    cam_plot_secondary_dict['find_button'].on_clicked(find_secondary)
+    cam_plot_secondary_dict['init_button'].on_clicked(init_secondary)
+    cam_plot_secondary_dict['start_acquisition_button'].on_clicked(start_acquisition_secondary)
+    cam_plot_secondary_dict['stop_acquisition_button'].on_clicked(stop_acquisition_secondary)
 
     # Set slider padding
     slider_padding = 0.1
@@ -172,6 +248,10 @@ __GUI_DICT = stereo_gui()
 # Set up streams #
 # -------------- #
 
+__THREAD_PRIMARY = None
+__THREAD_SECONDARY = None
+__STREAM_PRIMARY = False
+__STREAM_SECONDARY = False
 __IMSHOW_PRIMARY_DICT = {'imshow': None, 'imshow_size': None}
 __IMSHOW_SECONDARY_DICT = {'imshow': None, 'imshow_size': None}
 __HIST_PRIMARY_DICT = {'bar': None}
@@ -199,7 +279,7 @@ def plot_image(image, image_axes, imshow_dict):
 def plot_hist(image, hist_axes, hist_dict):
     """ plots histogram """
 
-    hist, bins = np.histogram(image.ravel(), normed=True, bins=256, range=(0, 255))
+    hist, bins = np.histogram(image.ravel(), normed=True, bins=100, range=(0, 255))
     if hist_dict['bar'] is not None:
         # Just reset height
         for i, bar in enumerate(hist_dict['bar']): # pylint: disable=blacklisted-name
@@ -207,7 +287,7 @@ def plot_hist(image, hist_axes, hist_dict):
     else:
         # Must reset axes and plot hist
         hist_axes.cla()
-        hist_dict['bar'] = hist_axes.bar(bins[:-1], hist, color='k')
+        hist_dict['bar'] = hist_axes.bar(bins[:-1], hist, color='k', width=256/100)
         hist_axes.set_xticklabels([])
         hist_axes.set_yticklabels([])
         hist_axes.set_xticks([])
@@ -219,7 +299,7 @@ def stream_image_primary():
     """ stream update of primary image """
     global __IMSHOW_PRIMARY_DICT, __HIST_PRIMARY_DICT # pylint: disable=global-statement
 
-    while plt.fignum_exists(__GUI_DICT['fig'].number):
+    while __STREAM_PRIMARY and plt.fignum_exists(__GUI_DICT['fig'].number):
         # Get image
         image = stereo_pyspin.get_image_primary()
         # Plot image
@@ -235,7 +315,7 @@ def stream_image_secondary():
     """ stream update of secondary image """
     global __IMSHOW_SECONDARY_DICT, __HIST_SECONDARY_DICT # pylint: disable=global-statement
 
-    while plt.fignum_exists(__GUI_DICT['fig'].number):
+    while __STREAM_SECONDARY and plt.fignum_exists(__GUI_DICT['fig'].number):
         # Get image
         image = stereo_pyspin.get_image_secondary()
         # Plot image
@@ -247,9 +327,6 @@ def stream_image_secondary():
                                           __GUI_DICT['cam_plot_secondary_dict']['hist_axes'],
                                           __HIST_SECONDARY_DICT)
 
-__THREAD_PRIMARY = threading.Thread(target=stream_image_primary)
-__THREAD_SECONDARY = threading.Thread(target=stream_image_secondary)
-
 # -------------- #
 # Start gui      #
 # -------------- #
@@ -257,16 +334,12 @@ __THREAD_SECONDARY = threading.Thread(target=stream_image_secondary)
 def main():
     """ Main program """
     global __IMSHOW_PRIMARY_DICT, __IMSHOW_SECONDARY_DICT, __GUI_DICT # pylint: disable=global-statement
-
-    # Start streams
-    __THREAD_PRIMARY.start()
-    __THREAD_SECONDARY.start()
+    global __STREAM_PRIMARY, __STREAM_SECONDARY # pylint: disable=global-statement
 
     # Update plot while figure exists
     while plt.fignum_exists(__GUI_DICT['fig'].number):
         try:
-            fps = 30
-            plt.pause(1/fps)
+            plt.pause(sys.float_info.min)
         except: # pylint: disable=bare-except
             if plt.fignum_exists(__GUI_DICT['fig'].number):
                 # Only re-raise error if figure is still open
@@ -274,9 +347,14 @@ def main():
 
     print('Exiting...')
 
-    # Cleanup
-    __THREAD_PRIMARY.join()
-    __THREAD_SECONDARY.join()
+    # Clean up threads
+    if __THREAD_PRIMARY is not None and __THREAD_PRIMARY.is_alive():
+        __STREAM_PRIMARY = False
+        __THREAD_PRIMARY.join()
+
+    if __THREAD_SECONDARY is not None and __THREAD_SECONDARY.is_alive():
+        __STREAM_SECONDARY = False
+        __THREAD_SECONDARY.join()
 
     # For some reason manually deleting these prevents an error on figure close.
     # There might be some circular reference issue which is causing the
