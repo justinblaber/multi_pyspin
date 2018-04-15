@@ -2,7 +2,7 @@
 
 """ GUI for setting up stereo cameras with PySpin library """
 
-# pylint: disable=line-too-long
+# pylint: disable=line-too-long,global-statement
 
 import sys
 import threading
@@ -17,11 +17,32 @@ from matplotlib.widgets import Slider
 
 import stereo_pyspin
 
+# These are min/max values for BFS-U3-32S4M camera
+__FPS_MIN = 1
+__FPS_MAX = 118
+__GAIN_MIN = 0        # Units are dB
+__GAIN_MAX = 47       # Units are dB
+__EXPOSURE_MIN = 5e-6 # Units are seconds
+__EXPOSURE_MAX = 30   # Units are seconds
+
+# Set up streaming params
+__THREAD_PRIMARY = None
+__THREAD_SECONDARY = None
+__STREAM_PRIMARY = False
+__STREAM_SECONDARY = False
+__IMSHOW_PRIMARY_DICT = {'imshow': None, 'imshow_size': None}
+__IMSHOW_SECONDARY_DICT = {'imshow': None, 'imshow_size': None}
+__HIST_PRIMARY_DICT = {'bar': None}
+__HIST_SECONDARY_DICT = {'bar': None}
+
+# GUI
+__GUI_DICT = None
+
 # -------------- #
 # Callbacks      #
 # -------------- #
 
-def find_primary(event): # pylint: disable=unused-argument
+def __find_primary(event): # pylint: disable=unused-argument
     """ Finds primary camera """
 
     try:
@@ -29,15 +50,15 @@ def find_primary(event): # pylint: disable=unused-argument
     except Exception as e: # pylint: disable=broad-except,invalid-name
         messagebox.showerror("Error", str(e))
 
-def find_secondary(event): # pylint: disable=unused-argument
+def __find_secondary(event): # pylint: disable=unused-argument
     """ Finds secondary camera """
 
     try:
-        stereo_pyspin.find_pimary(__GUI_DICT['cam_plot_secondary_dict']['find_text'].text)
+        stereo_pyspin.find_secondary(__GUI_DICT['cam_plot_secondary_dict']['find_text'].text)
     except Exception as e: # pylint: disable=broad-except,invalid-name
         messagebox.showerror("Error", str(e))
 
-def init_primary(event): # pylint: disable=unused-argument
+def __init_primary(event): # pylint: disable=unused-argument
     """ Initializes primary camera """
 
     try:
@@ -45,7 +66,7 @@ def init_primary(event): # pylint: disable=unused-argument
     except Exception as e: # pylint: disable=broad-except,invalid-name
         messagebox.showerror("Error", str(e))
 
-def init_secondary(event): # pylint: disable=unused-argument
+def __init_secondary(event): # pylint: disable=unused-argument
     """ Initializes secondary camera """
 
     try:
@@ -53,46 +74,54 @@ def init_secondary(event): # pylint: disable=unused-argument
     except Exception as e: # pylint: disable=broad-except,invalid-name
         messagebox.showerror("Error", str(e))
 
-def start_acquisition_primary(event): # pylint: disable=unused-argument
+def __start_acquisition_primary(event): # pylint: disable=unused-argument
     """ Starts acquisition of primary camera """
-    global __THREAD_PRIMARY, __STREAM_PRIMARY # pylint: disable=global-statement
+    global __THREAD_PRIMARY, __STREAM_PRIMARY
 
-    __STREAM_PRIMARY = True
-    __THREAD_PRIMARY = threading.Thread(target=stream_image_primary)
-    __THREAD_PRIMARY.start()
+    # Make sure it isn't already streaming
+    if not __STREAM_PRIMARY:
+        __STREAM_PRIMARY = True
+        __THREAD_PRIMARY = threading.Thread(target=__stream_image_primary)
+        __THREAD_PRIMARY.start()
 
-def start_acquisition_secondary(event): # pylint: disable=unused-argument
+def __start_acquisition_secondary(event): # pylint: disable=unused-argument
     """ Starts acquisition of secondary camera """
-    global __THREAD_SECONDARY, __STREAM_SECONDARY # pylint: disable=global-statement
+    global __THREAD_SECONDARY, __STREAM_SECONDARY
 
-    __STREAM_SECONDARY = True
-    __THREAD_SECONDARY = threading.Thread(target=stream_image_secondary)
-    __THREAD_SECONDARY.start()
+    # Make sure it isn't already streaming
+    if not __STREAM_SECONDARY:
+        __STREAM_SECONDARY = True
+        __THREAD_SECONDARY = threading.Thread(target=__stream_image_secondary)
+        __THREAD_SECONDARY.start()
 
-def stop_acquisition_primary(event): # pylint: disable=unused-argument
-    """ Starts acquisition of primary camera """
-    global __THREAD_PRIMARY, __STREAM_PRIMARY # pylint: disable=global-statement
+def __stop_acquisition_primary(event): # pylint: disable=unused-argument
+    """ Stops acquisition of primary camera """
+    global __THREAD_PRIMARY, __STREAM_PRIMARY
 
-    __STREAM_PRIMARY = False
-    __THREAD_PRIMARY.join()
-    __THREAD_PRIMARY = None
+    # Make sure we're actually streaming
+    if __STREAM_PRIMARY:
+        __STREAM_PRIMARY = False
+        __THREAD_PRIMARY.join()
+        __THREAD_PRIMARY = None
 
-def stop_acquisition_secondary(event): # pylint: disable=unused-argument
+def __stop_acquisition_secondary(event): # pylint: disable=unused-argument
     """ Stops acquisition of secondary camera """
-    global __THREAD_SECONDARY, __STREAM_SECONDARY # pylint: disable=global-statement
+    global __THREAD_SECONDARY, __STREAM_SECONDARY
 
-    __STREAM_SECONDARY = False
-    __THREAD_SECONDARY.join()
-    __THREAD_SECONDARY = None
+    # Make sure we're actually streaming
+    if __STREAM_SECONDARY:
+        __STREAM_SECONDARY = False
+        __THREAD_SECONDARY.join()
+        __THREAD_SECONDARY = None
 
 # -------------- #
 # GUI            #
 # -------------- #
 
-def cam_plot(fig, pos, options_height, padding, cam_str): # pylint: disable=too-many-locals
+def __cam_plot(fig, pos, cam_str, options_height, padding): # pylint: disable=too-many-locals
     """ Creates 'camera' plot; make one of these per camera """
 
-    # Set main sizes
+    # Set position params
     num_options = 3
     residual_height = pos[3]-(3+num_options)*padding-num_options*options_height
     image_height = residual_height*0.85
@@ -163,13 +192,44 @@ def cam_plot(fig, pos, options_height, padding, cam_str): # pylint: disable=too-
             'start_acquisition_button': start_acquisition_button,
             'stop_acquisition_button': stop_acquisition_button}
 
-def stereo_gui(): # pylint: disable=too-many-locals
+def __slider_with_text(fig, pos, slider_str, val_min, val_max, val_default, padding): # pylint: disable=too-many-arguments
+    """ Creates a slider with text box given a position """
+
+    # Set position params
+    slider_padding = 0.1
+    slider_text_width = 0.2
+
+    # Slider
+    slider_pos = [pos[0]+slider_padding+padding,
+                  pos[1],
+                  pos[2]-slider_padding-3*padding-slider_text_width,
+                  pos[3]]
+    slider_axes = fig.add_axes(slider_pos)
+    slider = Slider(slider_axes,
+                    slider_str,
+                    val_min,
+                    val_max,
+                    valinit=val_default)
+    slider.label.set_fontsize(7)
+    slider.valtext.set_visible(False)
+
+    # Text
+    text_pos = [slider_pos[0]+slider_pos[2]+padding,
+                slider_pos[1],
+                slider_text_width,
+                pos[3]]
+    text_axes = fig.add_axes(text_pos)
+    text = TextBox(text_axes, '')
+
+    return (slider, text)
+
+def __stereo_gui(): # pylint: disable=too-many-locals
     """ Main function for GUI for setting up stereo cameras with PySpin library """
 
     # Get figure
     fig = plt.figure()
 
-    # Set main sizes
+    # Set position params
     padding = 0.01
     options_height = 0.02
     num_options = 8
@@ -182,82 +242,82 @@ def stereo_gui(): # pylint: disable=too-many-locals
                        cam_plot_height_offset,
                        cam_plot_width,
                        cam_plot_height]
-    cam_plot_primary_dict = cam_plot(fig, cam_primary_pos, options_height, padding, 'Primary')
+    cam_plot_primary_dict = __cam_plot(fig,
+                                       cam_primary_pos,
+                                       'Primary',
+                                       options_height,
+                                       padding)
     # Set initial values
     cam_plot_primary_dict['init_text'].set_val('primary.yaml')
     # Set callbacks
-    cam_plot_primary_dict['find_button'].on_clicked(find_primary)
-    cam_plot_primary_dict['init_button'].on_clicked(init_primary)
-    cam_plot_primary_dict['start_acquisition_button'].on_clicked(start_acquisition_primary)
-    cam_plot_primary_dict['stop_acquisition_button'].on_clicked(stop_acquisition_primary)
+    cam_plot_primary_dict['find_button'].on_clicked(__find_primary)
+    cam_plot_primary_dict['init_button'].on_clicked(__init_primary)
+    cam_plot_primary_dict['start_acquisition_button'].on_clicked(__start_acquisition_primary)
+    cam_plot_primary_dict['stop_acquisition_button'].on_clicked(__stop_acquisition_primary)
 
     # Secondary camera plot
     cam_secondary_pos = [cam_primary_pos[0]+cam_primary_pos[2],
                          cam_plot_height_offset,
                          cam_plot_width,
                          cam_plot_height]
-    cam_plot_secondary_dict = cam_plot(fig, cam_secondary_pos, options_height, padding, 'Secondary')
+    cam_plot_secondary_dict = __cam_plot(fig,
+                                         cam_secondary_pos,
+                                         'Secondary',
+                                         options_height,
+                                         padding)
     # Set initial values
     cam_plot_secondary_dict['init_text'].set_val('secondary.yaml')
     # Set callbacks
-    cam_plot_secondary_dict['find_button'].on_clicked(find_secondary)
-    cam_plot_secondary_dict['init_button'].on_clicked(init_secondary)
-    cam_plot_secondary_dict['start_acquisition_button'].on_clicked(start_acquisition_secondary)
-    cam_plot_secondary_dict['stop_acquisition_button'].on_clicked(stop_acquisition_secondary)
-
-    # Set slider padding
-    slider_padding = 0.1
+    cam_plot_secondary_dict['find_button'].on_clicked(__find_secondary)
+    cam_plot_secondary_dict['init_button'].on_clicked(__init_secondary)
+    cam_plot_secondary_dict['start_acquisition_button'].on_clicked(__start_acquisition_secondary)
+    cam_plot_secondary_dict['stop_acquisition_button'].on_clicked(__stop_acquisition_secondary)
 
     # FPS
-    fps_pos = [cam_primary_pos[0]+slider_padding+padding,
-               cam_primary_pos[1]-options_height-padding,
-               1-2*padding-2*slider_padding,
-               options_height]
-    fps_axes = fig.add_axes(fps_pos)
-    fps_slider = Slider(fps_axes, 'FPS', 1, 200)
-    fps_slider.label.set_fontsize(7)
+    fps_pos = [0, cam_primary_pos[1]-options_height-padding, 1, options_height]
+    (fps_slider, fps_text) = __slider_with_text(fig,
+                                                fps_pos,
+                                                'FPS',
+                                                __FPS_MIN,
+                                                __FPS_MAX,
+                                                __FPS_MIN,
+                                                padding)
 
     # Gain
-    gain_pos = [fps_pos[0],
-                fps_pos[1]-options_height-padding,
-                1-2*padding-2*slider_padding,
-                options_height]
-    gain_axes = fig.add_axes(gain_pos)
-    gain_slider = Slider(gain_axes, 'Gain', 1, 200)
-    gain_slider.label.set_fontsize(7)
+    gain_pos = [0, fps_pos[1]-options_height-padding, 1, options_height]
+    (gain_slider, gain_text) = __slider_with_text(fig,
+                                                  gain_pos,
+                                                  'Gain',
+                                                  __GAIN_MIN,
+                                                  __GAIN_MAX,
+                                                  __GAIN_MIN,
+                                                  padding)
 
-    # Exposure
-    exposure_pos = [gain_pos[0],
-                    gain_pos[1]-options_height-padding,
-                    1-2*padding-2*slider_padding,
-                    options_height]
-    exposure_axes = fig.add_axes(exposure_pos)
-    exposure_slider = Slider(exposure_axes, 'Exposure', 1, 200)
-    exposure_slider.label.set_fontsize(7)
+    # Expousre
+    exposure_pos = [0, gain_pos[1]-options_height-padding, 1, options_height]
+    (exposure_slider, exposure_text) = __slider_with_text(fig,
+                                                          exposure_pos,
+                                                          'Exposure',
+                                                          __EXPOSURE_MIN,
+                                                          __EXPOSURE_MAX,
+                                                          __EXPOSURE_MIN,
+                                                          padding)
 
     return {'fig': fig,
             'cam_plot_primary_dict': cam_plot_primary_dict,
             'cam_plot_secondary_dict': cam_plot_secondary_dict,
             'fps_slider': fps_slider,
+            'fps_text': fps_text,
             'gain_slider': gain_slider,
-            'exposure_slider': exposure_slider}
-
-__GUI_DICT = stereo_gui()
+            'gain_text': gain_text,
+            'exposure_slider': exposure_slider,
+            'exposure_text': exposure_text}
 
 # -------------- #
 # Set up streams #
 # -------------- #
 
-__THREAD_PRIMARY = None
-__THREAD_SECONDARY = None
-__STREAM_PRIMARY = False
-__STREAM_SECONDARY = False
-__IMSHOW_PRIMARY_DICT = {'imshow': None, 'imshow_size': None}
-__IMSHOW_SECONDARY_DICT = {'imshow': None, 'imshow_size': None}
-__HIST_PRIMARY_DICT = {'bar': None}
-__HIST_SECONDARY_DICT = {'bar': None}
-
-def plot_image(image, image_axes, imshow_dict):
+def __plot_image(image, image_axes, imshow_dict):
     """ plots image somewhat fast """
 
     if image is not None:
@@ -276,7 +336,7 @@ def plot_image(image, image_axes, imshow_dict):
 
     return imshow_dict
 
-def plot_hist(image, hist_axes, hist_dict):
+def __plot_hist(image, hist_axes, hist_dict):
     """ plots histogram """
 
     hist, bins = np.histogram(image.ravel(), normed=True, bins=100, range=(0, 255))
@@ -295,41 +355,41 @@ def plot_hist(image, hist_axes, hist_dict):
 
     return hist_dict
 
-def stream_image_primary():
+def __stream_image_primary():
     """ stream update of primary image """
-    global __IMSHOW_PRIMARY_DICT, __HIST_PRIMARY_DICT # pylint: disable=global-statement
+    global __IMSHOW_PRIMARY_DICT, __HIST_PRIMARY_DICT
 
     while __STREAM_PRIMARY and plt.fignum_exists(__GUI_DICT['fig'].number):
         # Get image
         image = stereo_pyspin.get_image_primary()
 
         # Plot image
-        __IMSHOW_PRIMARY_DICT = plot_image(image,
-                                           __GUI_DICT['cam_plot_primary_dict']['image_axes'],
-                                           __IMSHOW_PRIMARY_DICT)
+        __IMSHOW_PRIMARY_DICT = __plot_image(image,
+                                             __GUI_DICT['cam_plot_primary_dict']['image_axes'],
+                                             __IMSHOW_PRIMARY_DICT)
 
         # Plot histogram
-        __HIST_PRIMARY_DICT = plot_hist(image,
-                                        __GUI_DICT['cam_plot_primary_dict']['hist_axes'],
-                                        __HIST_PRIMARY_DICT)
+        __HIST_PRIMARY_DICT = __plot_hist(image,
+                                          __GUI_DICT['cam_plot_primary_dict']['hist_axes'],
+                                          __HIST_PRIMARY_DICT)
 
-def stream_image_secondary():
+def __stream_image_secondary():
     """ stream update of secondary image """
-    global __IMSHOW_SECONDARY_DICT, __HIST_SECONDARY_DICT # pylint: disable=global-statement
+    global __IMSHOW_SECONDARY_DICT, __HIST_SECONDARY_DICT
 
     while __STREAM_SECONDARY and plt.fignum_exists(__GUI_DICT['fig'].number):
         # Get image
         image = stereo_pyspin.get_image_secondary()
 
         # Plot image
-        __IMSHOW_SECONDARY_DICT = plot_image(image,
-                                             __GUI_DICT['cam_plot_secondary_dict']['image_axes'],
-                                             __IMSHOW_SECONDARY_DICT)
+        __IMSHOW_SECONDARY_DICT = __plot_image(image,
+                                               __GUI_DICT['cam_plot_secondary_dict']['image_axes'],
+                                               __IMSHOW_SECONDARY_DICT)
 
         # Plot histogram
-        __HIST_SECONDARY_DICT = plot_hist(image,
-                                          __GUI_DICT['cam_plot_secondary_dict']['hist_axes'],
-                                          __HIST_SECONDARY_DICT)
+        __HIST_SECONDARY_DICT = __plot_hist(image,
+                                            __GUI_DICT['cam_plot_secondary_dict']['hist_axes'],
+                                            __HIST_SECONDARY_DICT)
 
 # -------------- #
 # Start gui      #
@@ -337,11 +397,17 @@ def stream_image_secondary():
 
 def main():
     """ Main program """
-    global __IMSHOW_PRIMARY_DICT, __IMSHOW_SECONDARY_DICT, __GUI_DICT # pylint: disable=global-statement
-    global __STREAM_PRIMARY, __STREAM_SECONDARY # pylint: disable=global-statement
+    global __GUI_DICT
+    global __IMSHOW_PRIMARY_DICT, __IMSHOW_SECONDARY_DICT
+    global __HIST_PRIMARY_DICT, __HIST_SECONDARY_DICT
+    global __THREAD_PRIMARY, __THREAD_SECONDARY
+    global __STREAM_PRIMARY, __STREAM_SECONDARY
+
+    # Set GUI
+    __GUI_DICT = __stereo_gui()
 
     # Update plot while figure exists
-    while plt.fignum_exists(__GUI_DICT['fig'].number):
+    while plt.fignum_exists(__GUI_DICT['fig'].number): # pylint: disable=unsubscriptable-object
         try:
             plt.pause(sys.float_info.min)
         except: # pylint: disable=bare-except
@@ -351,21 +417,14 @@ def main():
 
     print('Exiting...')
 
-    # Clean up threads
-    if __THREAD_PRIMARY is not None and __THREAD_PRIMARY.is_alive():
-        __STREAM_PRIMARY = False
-        __THREAD_PRIMARY.join()
-
-    if __THREAD_SECONDARY is not None and __THREAD_SECONDARY.is_alive():
-        __STREAM_SECONDARY = False
-        __THREAD_SECONDARY.join()
-
-    # For some reason manually deleting these prevents an error on figure close.
-    # There might be some circular reference issue which is causing destructor(s)
-    # to mess up...
-    del __IMSHOW_PRIMARY_DICT
-    del __IMSHOW_SECONDARY_DICT
-    del __GUI_DICT
+    # Figure has closed; clean up threads and GUI
+    __stop_acquisition_primary(None)
+    __stop_acquisition_secondary(None)
+    __IMSHOW_PRIMARY_DICT = {'imshow': None, 'imshow_size': None}
+    __IMSHOW_SECONDARY_DICT = {'imshow': None, 'imshow_size': None}
+    __HIST_PRIMARY_DICT = {'bar': None}
+    __HIST_SECONDARY_DICT = {'bar': None}
+    __GUI_DICT = None
 
     return 0
 
