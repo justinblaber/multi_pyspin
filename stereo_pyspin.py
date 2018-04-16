@@ -235,53 +235,60 @@ def get_secondary():
 def get_frame_rate():
     """ Gets frame rate """
 
-    frame_rate_primary = float(__cam_node_cmd(get_primary(),
-                                              'AcquisitionFrameRate',
-                                              'GetValue',
-                                              'RW'))
-    frame_rate_secondary = float(__cam_node_cmd(get_secondary(),
-                                                'AcquisitionFrameRate',
-                                                'GetValue',
-                                                'RW'))
+#    frame_rate_primary = float(__cam_node_cmd(get_primary(),
+#                                              'AcquisitionFrameRate',
+#                                              'GetValue',
+#                                              'RW'))
+#    frame_rate_secondary = float(__cam_node_cmd(get_secondary(),
+#                                                'AcquisitionFrameRate',
+#                                                'GetValue',
+#                                                'RW'))
+#
+#    if frame_rate_primary != frame_rate_secondary:
+#        warn('Primary and secondary frame rate are different: ' +
+#             str([frame_rate_primary, frame_rate_secondary]) + ' ' +
+#             '. Returning the average value')
+#
+#        return (frame_rate_primary+frame_rate_secondary)/2
+#
+#    return frame_rate_primary
 
-    if frame_rate_primary != frame_rate_secondary:
-        warn('Primary and secondary frame rate are different: ' +
-             str([frame_rate_primary, frame_rate_secondary]) + ' ' +
-             '. Returning the average value')
-
-        return (frame_rate_primary+frame_rate_secondary)/2
-
-    return frame_rate_primary
+    import numpy
+    return 60 + numpy.random.rand(1)[0]
 
 def get_gain():
     """ Gets gain """
 
-    gain_primary = float(__cam_node_cmd(get_primary(), 'Gain', 'GetValue', 'RW'))
-    gain_secondary = float(__cam_node_cmd(get_secondary(), 'Gain', 'GetValue', 'RW'))
+#    gain_primary = float(__cam_node_cmd(get_primary(), 'Gain', 'GetValue', 'RW'))
+#    gain_secondary = float(__cam_node_cmd(get_secondary(), 'Gain', 'GetValue', 'RW'))
+#
+#    if gain_primary != gain_secondary:
+#        warn('Primary and secondary gain are different: ' +
+#             str([gain_primary, gain_secondary]) + ' ' +
+#             '. Returning the average value')
+#
+#        return (gain_primary+gain_secondary)/2
+#
+#    return gain_primary
 
-    if gain_primary != gain_secondary:
-        warn('Primary and secondary gain are different: ' +
-             str([gain_primary, gain_secondary]) + ' ' +
-             '. Returning the average value')
-
-        return (gain_primary+gain_secondary)/2
-
-    return gain_primary
+    return 1
 
 def get_exposure():
     """ Gets exposure """
 
-    exposure_primary = float(__cam_node_cmd(get_primary(), 'ExposureTime', 'GetValue', 'RW'))
-    exposure_secondary = float(__cam_node_cmd(get_secondary(), 'ExposureTime', 'GetValue', 'RW'))
+#    exposure_primary = float(__cam_node_cmd(get_primary(), 'ExposureTime', 'GetValue', 'RW'))
+#    exposure_secondary = float(__cam_node_cmd(get_secondary(), 'ExposureTime', 'GetValue', 'RW'))
+#
+#    if exposure_primary != exposure_secondary:
+#        warn('Primary and secondary exposure are different: ' +
+#             str([exposure_primary, exposure_secondary]) + ' ' +
+#             '. Returning the average value')
+#
+#        return (exposure_primary+exposure_secondary)/2
+#
+#    return exposure_primary
 
-    if exposure_primary != exposure_secondary:
-        warn('Primary and secondary exposure are different: ' +
-             str([exposure_primary, exposure_secondary]) + ' ' +
-             '. Returning the average value')
-
-        return (exposure_primary+exposure_secondary)/2
-
-    return exposure_primary
+    return 5
 
 def get_image_primary():
     """ Gets image from primary camera """
