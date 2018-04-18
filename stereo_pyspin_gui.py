@@ -6,6 +6,7 @@
 
 import sys
 import threading
+from warnings import warn
 from tkinter import messagebox
 
 import numpy as np
@@ -42,41 +43,51 @@ __GUI_DICT = None
 # Callbacks      #
 # -------------- #
 
+def __message_box_func_wrapper(func):
+    """ wraps function in try/except and pops up message box with exception """
+
+    def __wrapped_func(*args, **kwargs):
+        """ wrapped function """
+
+        try:
+            func(*args, **kwargs)
+        except Exception as e: # pylint: disable=broad-except,invalid-name
+            messagebox.showerror("Error", str(e))
+    return __wrapped_func
+
 def __find_primary(_=None):
     """ Finds primary camera """
 
     print('Finding primary camera...')
-    try:
-        stereo_pyspin.find_pimary(__GUI_DICT['cam_plot_primary_dict']['find_text'].text)
-    except Exception as e: # pylint: disable=broad-except,invalid-name
-        messagebox.showerror("Error", str(e))
+    find_text = __GUI_DICT['cam_plot_primary_dict']['find_text'].text
+    if find_text.isdigit():
+        stereo_pyspin.find_pimary(int(find_text))
+    else:
+        stereo_pyspin.find_pimary(find_text)
 
 def __find_secondary(_=None):
     """ Finds secondary camera """
 
     print('Finding secondary camera...')
-    try:
-        stereo_pyspin.find_secondary(__GUI_DICT['cam_plot_secondary_dict']['find_text'].text)
-    except Exception as e: # pylint: disable=broad-except,invalid-name
-        messagebox.showerror("Error", str(e))
+    find_text = __GUI_DICT['cam_plot_secondary_dict']['find_text'].text
+    if find_text.isdigit():
+        stereo_pyspin.find_secondary(int(find_text))
+    else:
+        stereo_pyspin.find_secondary(find_text)
 
 def __init_primary(_=None):
     """ Initializes primary camera """
 
     print('Initializing primary camera...')
-    try:
-        stereo_pyspin.init_primary(__GUI_DICT['cam_plot_primary_dict']['init_text'].text)
-    except Exception as e: # pylint: disable=broad-except,invalid-name
-        messagebox.showerror("Error", str(e))
+    init_text = __GUI_DICT['cam_plot_primary_dict']['init_text'].text
+    stereo_pyspin.init_primary(init_text)
 
 def __init_secondary(_=None):
     """ Initializes secondary camera """
 
     print('Initializing secondary camera...')
-    try:
-        stereo_pyspin.init_secondary(__GUI_DICT['cam_plot_secondary_dict']['init_text'].text)
-    except Exception as e: # pylint: disable=broad-except,invalid-name
-        messagebox.showerror("Error", str(e))
+    init_text = __GUI_DICT['cam_plot_secondary_dict']['init_text'].text
+    stereo_pyspin.init_secondary(init_text)
 
 def __start_acquisition_primary(_=None):
     """ Starts acquisition of primary camera """
@@ -85,6 +96,7 @@ def __start_acquisition_primary(_=None):
     print('Starting primary camera acquisition...')
     # Make sure it isn't already streaming
     if not __STREAM_PRIMARY:
+        stereo_pyspin.start_acquisition_primary()
         __STREAM_PRIMARY = True
         __THREAD_PRIMARY = threading.Thread(target=__stream_image_primary)
         __THREAD_PRIMARY.start()
@@ -96,6 +108,7 @@ def __start_acquisition_secondary(_=None):
     print('Starting secondary camera acquisition...')
     # Make sure it isn't already streaming
     if not __STREAM_SECONDARY:
+        stereo_pyspin.start_acquisition_secondary()
         __STREAM_SECONDARY = True
         __THREAD_SECONDARY = threading.Thread(target=__stream_image_secondary)
         __THREAD_SECONDARY.start()
@@ -107,6 +120,7 @@ def __stop_acquisition_primary(_=None):
     # Make sure we're actually streaming
     print('Stopping primary camera acquisition...')
     if __STREAM_PRIMARY:
+        stereo_pyspin.end_acquisition_primary()
         __STREAM_PRIMARY = False
         __THREAD_PRIMARY.join()
         __THREAD_PRIMARY = None
@@ -118,6 +132,7 @@ def __stop_acquisition_secondary(_=None):
     # Make sure we're actually streaming
     print('Stopping secondary camera acquisition...')
     if __STREAM_SECONDARY:
+        stereo_pyspin.end_acquisition_secondary()
         __STREAM_SECONDARY = False
         __THREAD_SECONDARY.join()
         __THREAD_SECONDARY = None
@@ -125,67 +140,109 @@ def __stop_acquisition_secondary(_=None):
 def __fps_slider(_=None):
     """ FPS slider callback """
 
-    # Set frame rate for cameras
-    # stereo_pyspin.set_frame_rate(__GUI_DICT['fps_slider'].val)
+    fps = __GUI_DICT['fps_slider'].val
+
+    try:
+        # Set frame rate for cameras
+        stereo_pyspin.set_frame_rate(fps)
+    except Exception as e: # pylint: disable=broad-except,invalid-name
+        # Just print exception, the message box seems to mess up
+        # the matplotlib widgets
+        warn(str(e))
 
     # Update text to match slider
     __GUI_DICT['fps_text'].eventson = False
-    __GUI_DICT['fps_text'].set_val(__GUI_DICT['fps_slider'].val)
+    __GUI_DICT['fps_text'].set_val(fps)
     __GUI_DICT['fps_text'].eventson = True
 
 def __fps_text(_=None):
     """ FPS text callback """
 
-    # Set frame rate for cameras
-    # stereo_pyspin.set_frame_rate(float(__GUI_DICT['fps_text'].text))
+    fps = float(__GUI_DICT['fps_text'].text)
+
+    try:
+        # Set frame rate for cameras
+        stereo_pyspin.set_frame_rate(fps)
+    except Exception as e: # pylint: disable=broad-except,invalid-name
+        # Just print exception, the message box seems to mess up
+        # the matplotlib widgets
+        warn(str(e))
 
     # Update slider to match text
     __GUI_DICT['fps_slider'].eventson = False
-    __GUI_DICT['fps_slider'].set_val(float(__GUI_DICT['fps_text'].text))
+    __GUI_DICT['fps_slider'].set_val(fps)
     __GUI_DICT['fps_slider'].eventson = True
 
 def __gain_slider(_=None):
     """ Gain slider callback """
 
-    # Set gain for cameras
-    # stereo_pyspin.set_gain(__GUI_DICT['gain_slider'].val)
+    gain = __GUI_DICT['gain_slider'].val
+
+    try:
+        # Set gain for cameras
+        stereo_pyspin.set_gain(gain)
+    except Exception as e: # pylint: disable=broad-except,invalid-name
+        # Just print exception, the message box seems to mess up
+        # the matplotlib widgets
+        warn(str(e))
 
     # Update text to match slider
     __GUI_DICT['gain_text'].eventson = False
-    __GUI_DICT['gain_text'].set_val(__GUI_DICT['gain_slider'].val)
+    __GUI_DICT['gain_text'].set_val(gain)
     __GUI_DICT['gain_text'].eventson = True
 
 def __gain_text(_=None):
     """ gain text callback """
 
-    # Set gain for cameras
-    # stereo_pyspin.set_gain(float(__GUI_DICT['gain_text'].text))
+    gain = float(__GUI_DICT['gain_text'].text)
+
+    try:
+        # Set gain for cameras
+        stereo_pyspin.set_gain(gain)
+    except Exception as e: # pylint: disable=broad-except,invalid-name
+        # Just print exception, the message box seems to mess up
+        # the matplotlib widgets
+        warn(str(e))
 
     # Update slider to match text
     __GUI_DICT['gain_slider'].eventson = False
-    __GUI_DICT['gain_slider'].set_val(float(__GUI_DICT['gain_text'].text))
+    __GUI_DICT['gain_slider'].set_val(gain)
     __GUI_DICT['gain_slider'].eventson = True
 
 def __exposure_slider(_=None):
     """ Exposure slider callback """
 
-    # Set exposure for cameras
-    # stereo_pyspin.set_exposure(__GUI_DICT['exposure_slider'].val)
+    exposure = __GUI_DICT['exposure_slider'].val
+
+    try:
+        # Set exposure for cameras
+        stereo_pyspin.set_exposure(exposure)
+    except Exception as e: # pylint: disable=broad-except,invalid-name
+        # Just print exception, the message box seems to mess up
+        # the matplotlib widgets
+        warn(str(e))
 
     # Update text to match slider
     __GUI_DICT['exposure_text'].eventson = False
-    __GUI_DICT['exposure_text'].set_val(__GUI_DICT['exposure_slider'].val)
+    __GUI_DICT['exposure_text'].set_val(exposure)
     __GUI_DICT['exposure_text'].eventson = True
 
 def __exposure_text(_=None):
     """ exposure text callback """
 
-    # Set exposure for cameras
-    # stereo_pyspin.set_exposure(float(__GUI_DICT['exposure_text'].text))
+    exposure = float(__GUI_DICT['exposure_text'].text)
+
+    try:
+        # Set exposure for cameras
+        stereo_pyspin.set_exposure(exposure)
+    except Exception as e: # pylint: disable=broad-except,invalid-name
+        # Just print exception, the message box seems to mess up
+        # the matplotlib widgets
+        warn(str(e))
 
     # Update slider to match text
     __GUI_DICT['exposure_slider'].eventson = False
-    __GUI_DICT['exposure_slider'].set_val(float(__GUI_DICT['exposure_text'].text))
+    __GUI_DICT['exposure_slider'].set_val(exposure)
     __GUI_DICT['exposure_slider'].eventson = True
 
 # -------------- #
@@ -283,7 +340,8 @@ def __slider_with_text(fig, pos, slider_str, val_min, val_max, val_default, padd
                     slider_str,
                     val_min,
                     val_max,
-                    valinit=val_default)
+                    valinit=val_default,
+                    dragging=False)
     slider.label.set_fontsize(7)
     slider.valtext.set_visible(False)
 
@@ -324,10 +382,10 @@ def __stereo_gui(): # pylint: disable=too-many-locals
     # Set initial values
     cam_plot_primary_dict['init_text'].set_val('primary.yaml')
     # Set callbacks
-    cam_plot_primary_dict['find_button'].on_clicked(__find_primary)
-    cam_plot_primary_dict['init_button'].on_clicked(__init_primary)
-    cam_plot_primary_dict['start_acquisition_button'].on_clicked(__start_acquisition_primary)
-    cam_plot_primary_dict['stop_acquisition_button'].on_clicked(__stop_acquisition_primary)
+    cam_plot_primary_dict['find_button'].on_clicked(__message_box_func_wrapper(__find_primary))
+    cam_plot_primary_dict['init_button'].on_clicked(__message_box_func_wrapper(__init_primary))
+    cam_plot_primary_dict['start_acquisition_button'].on_clicked(__message_box_func_wrapper(__start_acquisition_primary))
+    cam_plot_primary_dict['stop_acquisition_button'].on_clicked(__message_box_func_wrapper(__stop_acquisition_primary))
 
     # Secondary camera plot
     cam_secondary_pos = [cam_primary_pos[0]+cam_primary_pos[2],
@@ -342,10 +400,10 @@ def __stereo_gui(): # pylint: disable=too-many-locals
     # Set initial values
     cam_plot_secondary_dict['init_text'].set_val('secondary.yaml')
     # Set callbacks
-    cam_plot_secondary_dict['find_button'].on_clicked(__find_secondary)
-    cam_plot_secondary_dict['init_button'].on_clicked(__init_secondary)
-    cam_plot_secondary_dict['start_acquisition_button'].on_clicked(__start_acquisition_secondary)
-    cam_plot_secondary_dict['stop_acquisition_button'].on_clicked(__stop_acquisition_secondary)
+    cam_plot_secondary_dict['find_button'].on_clicked(__message_box_func_wrapper(__find_secondary))
+    cam_plot_secondary_dict['init_button'].on_clicked(__message_box_func_wrapper(__init_secondary))
+    cam_plot_secondary_dict['start_acquisition_button'].on_clicked(__message_box_func_wrapper(__start_acquisition_secondary))
+    cam_plot_secondary_dict['stop_acquisition_button'].on_clicked(__message_box_func_wrapper(__stop_acquisition_secondary))
 
     # FPS
     fps_pos = [0, cam_primary_pos[1]-options_height-padding, 1, options_height]
@@ -403,6 +461,10 @@ def __stereo_gui(): # pylint: disable=too-many-locals
 def __plot_image(image, image_axes, imshow_dict):
     """ plots image somewhat fast """
 
+    # TODO: need to adjust max intensity based on bit depth
+
+    max_val = 255
+
     if image is not None:
         if image.shape == imshow_dict['imshow_size']:
             # Can just "set_data" since data is the same size
@@ -410,7 +472,7 @@ def __plot_image(image, image_axes, imshow_dict):
         else:
             # Must reset axes and re-imshow()
             image_axes.cla()
-            imshow_dict['imshow'] = image_axes.imshow(image, cmap='gray', vmin=0, vmax=256)
+            imshow_dict['imshow'] = image_axes.imshow(image, cmap='gray', vmin=0, vmax=max_val)
             imshow_dict['imshow_size'] = image.shape
             image_axes.set_xticklabels([])
             image_axes.set_yticklabels([])
@@ -421,6 +483,8 @@ def __plot_image(image, image_axes, imshow_dict):
 
 def __plot_hist(image, hist_axes, hist_dict):
     """ plots histogram """
+
+    # TODO: need to adjust max intensity based on bit depth
 
     num_bins = 100
     max_val = 255
