@@ -61,9 +61,9 @@ def __find_primary(_=None):
     print('Finding primary camera...')
     find_text = __GUI_DICT['cam_plot_primary_dict']['find_text'].text
     if find_text.isdigit():
-        stereo_pyspin.find_pimary(int(find_text))
+        stereo_pyspin.find_primary(int(find_text))
     else:
-        stereo_pyspin.find_pimary(find_text)
+        stereo_pyspin.find_primary(find_text)
 
 def __find_secondary(_=None):
     """ Finds secondary camera """

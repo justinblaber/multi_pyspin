@@ -197,7 +197,7 @@ def __get_secondary():
 # "public" functions  #
 # ------------------- #
 
-def find_pimary(cam_serial_or_yaml_path):
+def find_primary(cam_serial_or_yaml_path):
     """ Finds primary camera """
     global __CAM_PRIMARY # pylint: disable=global-statement
 
