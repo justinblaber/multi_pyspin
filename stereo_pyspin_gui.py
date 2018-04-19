@@ -55,39 +55,31 @@ def __message_box_func_wrapper(func):
             messagebox.showerror("Error", str(e))
     return __wrapped_func
 
-def __find_primary(_=None):
-    """ Finds primary camera """
+def __find_and_init_primary(_=None):
+    """ Finds and initializes primary camera """
+
+    find_and_init_text = __GUI_DICT['cam_plot_primary_dict']['find_and_init_text'].text
 
     print('Finding primary camera...')
-    find_text = __GUI_DICT['cam_plot_primary_dict']['find_text'].text
-    if find_text.isdigit():
-        stereo_pyspin.find_primary(int(find_text))
-    else:
-        stereo_pyspin.find_primary(find_text)
 
-def __find_secondary(_=None):
-    """ Finds secondary camera """
-
-    print('Finding secondary camera...')
-    find_text = __GUI_DICT['cam_plot_secondary_dict']['find_text'].text
-    if find_text.isdigit():
-        stereo_pyspin.find_secondary(int(find_text))
-    else:
-        stereo_pyspin.find_secondary(find_text)
-
-def __init_primary(_=None):
-    """ Initializes primary camera """
+    stereo_pyspin.find_primary(find_and_init_text)
 
     print('Initializing primary camera...')
-    init_text = __GUI_DICT['cam_plot_primary_dict']['init_text'].text
-    stereo_pyspin.init_primary(init_text)
 
-def __init_secondary(_=None):
-    """ Initializes secondary camera """
+    stereo_pyspin.init_primary(find_and_init_text)
+
+def __find_and_init_secondary(_=None):
+    """ Finds and initializes secondary camera """
+
+    find_and_init_text = __GUI_DICT['cam_plot_secondary_dict']['find_and_init_text'].text
+
+    print('Finding secondary camera...')
+
+    stereo_pyspin.find_secondary(find_and_init_text)
 
     print('Initializing secondary camera...')
-    init_text = __GUI_DICT['cam_plot_secondary_dict']['init_text'].text
-    stereo_pyspin.init_secondary(init_text)
+
+    stereo_pyspin.init_secondary(find_and_init_text)
 
 def __start_acquisition_primary(_=None):
     """ Starts acquisition of primary camera """
@@ -253,7 +245,7 @@ def __cam_plot(fig, pos, cam_str, options_height, padding): # pylint: disable=to
     """ Creates 'camera' plot; make one of these per camera """
 
     # Set position params
-    num_options = 3
+    num_options = 2
     residual_height = pos[3]-(3+num_options)*padding-num_options*options_height
     image_height = residual_height*0.85
     image_width = pos[2]-2*padding
@@ -262,36 +254,32 @@ def __cam_plot(fig, pos, cam_str, options_height, padding): # pylint: disable=to
     # Set axes
     image_pos = [pos[0]+padding, pos[1]+pos[3]-image_height-padding, image_width, image_height]
     image_axes = fig.add_axes(image_pos)
+    image_axes.set_xticklabels([])
+    image_axes.set_yticklabels([])
+    image_axes.set_xticks([])
+    image_axes.set_yticks([])
 
     hist_pos = [image_pos[0], image_pos[1]-hist_height-padding, image_width, hist_height]
     hist_axes = fig.add_axes(hist_pos)
+    hist_axes.set_xticklabels([])
+    hist_axes.set_yticklabels([])
+    hist_axes.set_xticks([])
+    hist_axes.set_yticks([])
 
-    find_button_pos = [image_pos[0],
-                       hist_pos[1]-options_height-padding,
-                       image_width*0.25,
-                       options_height]
-    find_button_axes = fig.add_axes(find_button_pos)
+    find_and_init_button_pos = [image_pos[0],
+                                hist_pos[1]-options_height-padding,
+                                (image_width-padding)*0.5,
+                                options_height]
+    find_and_init_button_axes = fig.add_axes(find_and_init_button_pos)
 
-    find_text_pos = [find_button_pos[0]+find_button_pos[2]+padding,
-                     find_button_pos[1],
-                     image_width-find_button_pos[2]-padding,
-                     options_height]
-    find_text_axes = fig.add_axes(find_text_pos)
+    find_and_init_text_pos = [find_and_init_button_pos[0]+find_and_init_button_pos[2]+padding,
+                              find_and_init_button_pos[1],
+                              (image_width-padding)*0.5,
+                              options_height]
+    find_and_init_text_axes = fig.add_axes(find_and_init_text_pos)
 
-    init_button_pos = [find_button_pos[0],
-                       find_button_pos[1]-options_height-padding,
-                       image_width*0.25,
-                       options_height]
-    init_button_axes = fig.add_axes(init_button_pos)
-
-    init_text_pos = [init_button_pos[0]+init_button_pos[2]+padding,
-                     init_button_pos[1],
-                     image_width-init_button_pos[2]-padding,
-                     options_height]
-    init_text_axes = fig.add_axes(init_text_pos)
-
-    start_acquisition_pos = [init_button_pos[0],
-                             init_button_pos[1]-options_height-padding,
+    start_acquisition_pos = [find_and_init_button_pos[0],
+                             find_and_init_button_pos[1]-options_height-padding,
                              (image_width-padding)*0.5,
                              options_height]
     start_acquisition_axes = fig.add_axes(start_acquisition_pos)
@@ -303,12 +291,9 @@ def __cam_plot(fig, pos, cam_str, options_height, padding): # pylint: disable=to
     stop_acquisition_axes = fig.add_axes(stop_acquisition_pos)
 
     # Set widgets
-    find_button = Button(find_button_axes, 'Find ' + cam_str)
-    find_button.label.set_fontsize(7)
-    find_text = TextBox(find_text_axes, '')
-    init_button = Button(init_button_axes, 'Init ' + cam_str)
-    init_button.label.set_fontsize(7)
-    init_text = TextBox(init_text_axes, '')
+    find_and_init_button = Button(find_and_init_button_axes, 'Find and Init ' + cam_str)
+    find_and_init_button.label.set_fontsize(7)
+    find_and_init_text = TextBox(find_and_init_text_axes, '')
     start_acquisition_button = Button(start_acquisition_axes, 'Start Acquisition')
     start_acquisition_button.label.set_fontsize(7)
     stop_acquisition_button = Button(stop_acquisition_axes, 'Stop Acquisition')
@@ -316,10 +301,8 @@ def __cam_plot(fig, pos, cam_str, options_height, padding): # pylint: disable=to
 
     return {'image_axes': image_axes,
             'hist_axes': hist_axes,
-            'find_button': find_button,
-            'find_text': find_text,
-            'init_button': init_button,
-            'init_text': init_text,
+            'find_and_init_button': find_and_init_button,
+            'find_and_init_text': find_and_init_text,
             'start_acquisition_button': start_acquisition_button,
             'stop_acquisition_button': stop_acquisition_button}
 
@@ -355,7 +338,7 @@ def __slider_with_text(fig, pos, slider_str, val_min, val_max, val_default, padd
 
     return (slider, text)
 
-def __stereo_gui(): # pylint: disable=too-many-locals
+def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
     """ Main function for GUI for setting up stereo cameras with PySpin library """
 
     # Get figure
@@ -364,7 +347,7 @@ def __stereo_gui(): # pylint: disable=too-many-locals
     # Set position params
     padding = 0.01
     options_height = 0.02
-    num_options = 8
+    num_options = 6
     cam_plot_height_offset = num_options*options_height+num_options*padding
     cam_plot_width = 0.5
     cam_plot_height = 1-cam_plot_height_offset
@@ -380,10 +363,9 @@ def __stereo_gui(): # pylint: disable=too-many-locals
                                        options_height,
                                        padding)
     # Set initial values
-    cam_plot_primary_dict['init_text'].set_val('primary.yaml')
+    cam_plot_primary_dict['find_and_init_text'].set_val('primary.yaml')
     # Set callbacks
-    cam_plot_primary_dict['find_button'].on_clicked(__message_box_func_wrapper(__find_primary))
-    cam_plot_primary_dict['init_button'].on_clicked(__message_box_func_wrapper(__init_primary))
+    cam_plot_primary_dict['find_and_init_button'].on_clicked(__message_box_func_wrapper(__find_and_init_primary))
     cam_plot_primary_dict['start_acquisition_button'].on_clicked(__message_box_func_wrapper(__start_acquisition_primary))
     cam_plot_primary_dict['stop_acquisition_button'].on_clicked(__message_box_func_wrapper(__stop_acquisition_primary))
 
@@ -398,15 +380,14 @@ def __stereo_gui(): # pylint: disable=too-many-locals
                                          options_height,
                                          padding)
     # Set initial values
-    cam_plot_secondary_dict['init_text'].set_val('secondary.yaml')
+    cam_plot_secondary_dict['find_and_init_text'].set_val('secondary.yaml')
     # Set callbacks
-    cam_plot_secondary_dict['find_button'].on_clicked(__message_box_func_wrapper(__find_secondary))
-    cam_plot_secondary_dict['init_button'].on_clicked(__message_box_func_wrapper(__init_secondary))
+    cam_plot_secondary_dict['find_and_init_button'].on_clicked(__message_box_func_wrapper(__find_and_init_secondary))
     cam_plot_secondary_dict['start_acquisition_button'].on_clicked(__message_box_func_wrapper(__start_acquisition_secondary))
     cam_plot_secondary_dict['stop_acquisition_button'].on_clicked(__message_box_func_wrapper(__stop_acquisition_secondary))
 
     # FPS
-    fps_pos = [0, cam_primary_pos[1]-options_height-padding, 1, options_height]
+    fps_pos = [0, cam_primary_pos[1]-options_height, 1, options_height]
     (fps_slider, fps_text) = __slider_with_text(fig,
                                                 fps_pos,
                                                 'FPS',
@@ -444,6 +425,54 @@ def __stereo_gui(): # pylint: disable=too-many-locals
     exposure_slider.on_changed(__exposure_slider)
     exposure_text.on_submit(__exposure_text)
 
+    # Set name format
+    name_format_pos = [(0.5-2*padding)*0.1875+2*padding,
+                       exposure_pos[1]-options_height-padding,
+                       (0.5-2*padding)*0.8125-padding,
+                       options_height]
+    name_format_axes = fig.add_axes(name_format_pos)
+    name_format_text = TextBox(name_format_axes, 'Name format')
+    name_format_text.label.set_fontsize(7)
+    name_format_text.set_val('{serial}_{datetime}_{counter}_{L_R}.png')
+
+    # Set counter
+    counter_pos = [name_format_pos[0]+name_format_pos[2]+padding+(0.5-2*padding)*0.1875+2*padding,
+                   exposure_pos[1]-options_height-padding,
+                   (0.5-2*padding)*0.8125-padding,
+                   options_height]
+    counter_axes = fig.add_axes(counter_pos)
+    counter_text = TextBox(counter_axes, 'Counter')
+    counter_text.label.set_fontsize(7)
+    counter_text.set_val(1)
+
+    # Set save image button
+    save_image_button_pos = [padding,
+                             name_format_pos[1]-options_height-padding,
+                             0.5-2*padding,
+                             options_height]
+    save_image_button_axes = fig.add_axes(save_image_button_pos)
+    save_image_button = Button(save_image_button_axes, 'Save Image(s)')
+    save_image_button.label.set_fontsize(7)
+
+    # Set save image text
+    save_image_text_pos = [save_image_button_pos[0]+save_image_button_pos[2]+padding+(0.5-2*padding)*0.1875+2*padding,
+                           name_format_pos[1]-options_height-padding,
+                           (0.5-2*padding)*0.8125-padding,
+                           options_height]
+    save_image_text_axes = fig.add_axes(save_image_text_pos)
+    save_image_text = TextBox(save_image_text_axes, '#')
+    save_image_text.label.set_fontsize(7)
+    save_image_text.set_val(1)
+
+    # Set save config button
+    save_config_button_pos = [padding,
+                              save_image_button_pos[1]-options_height-padding,
+                              1-2*padding,
+                              options_height]
+    save_config_button_axes = fig.add_axes(save_config_button_pos)
+    save_config_button = Button(save_config_button_axes, 'Save Config')
+    save_config_button.label.set_fontsize(7)
+
     return {'fig': fig,
             'cam_plot_primary_dict': cam_plot_primary_dict,
             'cam_plot_secondary_dict': cam_plot_secondary_dict,
@@ -452,7 +481,12 @@ def __stereo_gui(): # pylint: disable=too-many-locals
             'gain_slider': gain_slider,
             'gain_text': gain_text,
             'exposure_slider': exposure_slider,
-            'exposure_text': exposure_text}
+            'exposure_text': exposure_text,
+            'name_format_text': name_format_text,
+            'counter_text': counter_text,
+            'save_image_button': save_image_button,
+            'save_image_text': save_image_text,
+            'save_config_button': save_config_button}
 
 # -------------- #
 # Set up streams #
