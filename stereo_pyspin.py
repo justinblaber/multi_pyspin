@@ -3,7 +3,7 @@
 """ 'singleton' for setting up stereo cameras with PySpin library """
 
 import os
-import numbers
+import atexit
 from warnings import warn
 
 import yaml
@@ -13,39 +13,67 @@ import PySpin
 # "attributes"        #
 # ------------------- #
 
-# cameras must be found before they are used
+# Initialize system; if system goes out of scope it will throw an error if there
+# are any references to cameras remaining
+__SYSTEM = PySpin.System.GetInstance()
+
+# Cameras must be found before they are used
 __CAM_PRIMARY = None
 __CAM_SECONDARY = None
+
+# --------------------#
+# destructor          #
+# ------------------- %
+
+# This ensures camera references are removed before releasing the system
+def __destructor():
+    """ Removes references to cameras before releasing system """
+    global __CAM_PRIMARY, __CAM_SECONDARY # pylint: disable=global-statement
+
+    print('Exiting stereo pyspin...')
+
+    # Clear cameras
+    if __CAM_PRIMARY is not None:
+        del __CAM_PRIMARY
+    if __CAM_SECONDARY is not None:
+        del __CAM_SECONDARY
+
+    # Now clear system
+    __SYSTEM.ReleaseInstance()
+
+atexit.register(__destructor)
 
 # ------------------- #
 # "static" functions  #
 # ------------------- #
 
 def __get_serial(cam_serial_or_yaml_path):
-    """ cam_serial_or_yaml_path is either a serial number or a path to a yaml file """
+    """ cam_serial_or_yaml_path is either a cam serial or a path to a yaml file """
 
-    if isinstance(cam_serial_or_yaml_path, str) and cam_serial_or_yaml_path.endswith('.yaml'):
+    # NOTE: I'm not sure if serial numbers can contain letters; If so, if the
+    # serial number happens to end with ".yaml" this can fail. The
+    # DeviceSerialNumber method returns a string, so I'm assuming letters are
+    # possible.
+
+    if cam_serial_or_yaml_path.endswith('.yaml'):
         # This is a yaml path
         yaml_path = cam_serial_or_yaml_path
         with open(yaml_path, 'rb') as file:
             cam_dict = yaml.load(file)
-            if 'serial' in cam_dict:
-                cam_serial = cam_dict['serial']
+            if isinstance(cam_dict, dict) and 'serial' in cam_dict:
+                # yaml might cast serial to number
+                cam_serial = str(cam_dict['serial'])
             else:
                 raise RuntimeError('Invalid yaml file: "' + yaml_path +
                                    '". Missing "serial" field.')
-    elif isinstance(cam_serial_or_yaml_path, numbers.Number):
-        # This is a serial number
-        cam_serial = cam_serial_or_yaml_path
     else:
-        raise RuntimeError('Input: "' + str(cam_serial_or_yaml_path) +
-                           '" must either be a serial number or path ' +
-                           'to a yaml file.')
+        # This is a cam serial
+        cam_serial = cam_serial_or_yaml_path
 
     return cam_serial
 
-def __cam_node_cmd(cam, cam_attr_str, cam_method_str, pyspin_mode_str, cam_method_arg=None):
-    """ Performs cam_method on input cam/attribute with access mode check  """
+def __cam_node_cmd(cam, cam_attr_str, cam_method_str, pyspin_mode_str=None, cam_method_arg=None):
+    """ Performs cam_method on input cam and attribute with optional access mode check  """
 
     # First, get camera attribute
     cam_attr = cam
@@ -53,10 +81,12 @@ def __cam_node_cmd(cam, cam_attr_str, cam_method_str, pyspin_mode_str, cam_metho
     for sub_cam_attr_str in cam_attr_str_split:
         cam_attr = getattr(cam_attr, sub_cam_attr_str)
 
-    # Perform access mode check
-    if cam_attr.GetAccessMode() != getattr(PySpin, pyspin_mode_str):
-        raise RuntimeError('Access mode check failed for: "' + cam_attr_str + '" with mode: "' +
-                           pyspin_mode_str + '".')
+    # Perform optional access mode check
+    if pyspin_mode_str is not None:
+        if cam_attr.GetAccessMode() != getattr(PySpin, pyspin_mode_str):
+            raise RuntimeError('Access mode check failed for: "' + cam_attr_str + '" with mode: "' +
+                               pyspin_mode_str + '".')
+
     # Print command info
     info_str = 'Executing: "' + '.'.join([cam_attr_str, cam_method_str]) + '('
     if cam_method_arg is not None:
@@ -64,7 +94,7 @@ def __cam_node_cmd(cam, cam_attr_str, cam_method_str, pyspin_mode_str, cam_metho
     print(info_str + ')"')
 
     # Format command argument in case it's a string containing a PySpin attribute
-    if cam_method_arg is not None and isinstance(cam_method_arg, str):
+    if isinstance(cam_method_arg, str):
         cam_method_arg_split = cam_method_arg.split('.')
         if cam_method_arg_split[0] == 'PySpin':
             if len(cam_method_arg_split) == 2:
@@ -79,34 +109,30 @@ def __cam_node_cmd(cam, cam_attr_str, cam_method_str, pyspin_mode_str, cam_metho
     else:
         return getattr(cam_attr, cam_method_str)(cam_method_arg)
 
-def __find_cam(cam_serial_match):
+def __find_cam(cam_serial):
     """ returns PySpin camera object given a serial number """
 
-    # Get system
-    system = PySpin.System.GetInstance()
-
     # Retrieve cameras from the system
-    cam_list = system.GetCameras()
+    cam_list = __SYSTEM.GetCameras()
 
     # Find camera matching serial
-    cam_match = None
+    cam = None
     for i in range(cam_list.GetSize()):
         # Get camera
         cam = cam_list.GetByIndex(i)
 
-        # Read serial number
-        cam_serial = int(__cam_node_cmd(cam, 'TLDevice.DeviceSerialNumber', 'GetValue', 'RO'))
-        if cam_serial == cam_serial_match:
-            cam_match = cam
+        # Compare serial number
+        if cam_serial == __cam_node_cmd(cam, 'TLDevice.DeviceSerialNumber', 'GetValue', 'RO'):
+            break
 
     # Check to see if match was found
-    if cam_match is None:
-        raise RuntimeError('Could not find camera with serial: "' + str(cam_serial_match) + '".')
+    if cam is None:
+        raise RuntimeError('Could not find camera with serial: "' + str(cam_serial) + '".')
 
-    return cam_match
+    return cam
 
-def __init_cam(cam, yaml_path=None):
-    """ initializes input camera given optional path to yaml file """
+def __init_cam(cam, yaml_path=None): # pylint: disable=too-many-branches
+    """ Initializes input camera given optional path to yaml file """
 
     if yaml_path is not None and not os.path.isfile(yaml_path):
         raise RuntimeError('"' + yaml_path + '" could not be found!')
@@ -114,44 +140,60 @@ def __init_cam(cam, yaml_path=None):
     # Must Init() camera first
     cam.Init()
 
-    # Load yaml file (if provided) then run commands specified in the yaml file
+    # Load yaml file (if provided) and grab (optional) init commands
+    node_cmd_list = None
     if yaml_path is not None:
         with open(yaml_path, 'rb') as file:
             cam_dict = yaml.load(file)
-            if 'init' in cam_dict: # pylint: disable=too-many-nested-blocks
+            # Get commands from "init"
+            if isinstance(cam_dict, dict) and 'init' in cam_dict:
                 node_cmd_list = cam_dict['init']
-                if node_cmd_list is not None:
-                    for node_cmd in node_cmd_list:
-                        # Get camera attribute string
-                        cam_attr_str = list(node_cmd.keys())
-                        if len(cam_attr_str) == 1:
-                            cam_attr_str = cam_attr_str[0]
-                            cam_method_arg = node_cmd[cam_attr_str]
-                            if cam_method_arg is None:
-                                # If no argument is specified, then its assumed this is an "Execute"
-                                __cam_node_cmd(cam, cam_attr_str, 'Execute', 'WO')
-                            else:
-                                # Make sure only key is a string named "value"
-                                cam_method_arg_key = list(cam_method_arg.keys())
-                                if len(cam_method_arg_key) == 1 and \
-                                   cam_method_arg_key[0] == 'value':
-                                    # If argument is provided, its assumed this is a "SetValue"
-                                    __cam_node_cmd(cam,
-                                                   cam_attr_str,
-                                                   'SetValue',
-                                                   'RW',
-                                                   cam_method_arg[cam_method_arg_key[0]])
-                                else:
-                                    raise RuntimeError('Only a single argument key named '
-                                                       '"value" is supported; For camera '
-                                                       'attribute: "' + cam_attr_str +
-                                                       '" the following was set: ' +
-                                                       str(cam_method_arg_key))
-                        else:
-                            raise RuntimeError('Only one camera attribute per "tick" is supported. '
-                                               'Please fix: ' + str(cam_attr_str))
-            else:
-                raise RuntimeError('Invalid yaml file: "' + yaml_path + '". Missing "init" field.')
+
+    # Perform init commands if they are provided
+    if isinstance(node_cmd_list, list): # pylint: disable=too-many-nested-blocks
+        # Iterate over commands
+        for node_cmd in node_cmd_list:
+            # Get camera attribute string
+            if isinstance(node_cmd, dict):
+                cam_attr_str = list(node_cmd.keys())
+                if len(cam_attr_str) == 1:
+                    cam_attr_str = cam_attr_str[0]
+
+                    # Get optional method attributes
+                    cam_method_arg = None
+                    pyspin_mode_str = None
+
+                    cam_method_attributes = node_cmd[cam_attr_str]
+                    if isinstance(cam_method_attributes, dict):
+                        # Get method argument
+                        if 'value' in cam_method_attributes:
+                            cam_method_arg = cam_method_attributes['value']
+
+                        # Get access mode
+                        if 'access' in cam_method_attributes:
+                            pyspin_mode_str = cam_method_attributes['access']
+
+                    # NOTE: I believe there should only be SetValue()'s and Execute()'s for
+                    # initialization of camera. If this is not the case, then the method will
+                    # need to be added to the yaml file.
+
+                    # Get method
+                    if cam_method_arg is not None:
+                        # Assume this is a SetValue()
+                        cam_method_str = 'SetValue'
+                    else:
+                        # Assume this is an Execute()
+                        cam_method_str = 'Execute'
+
+                    # Perform command
+                    __cam_node_cmd(cam,
+                                   cam_attr_str,
+                                   cam_method_str,
+                                   pyspin_mode_str,
+                                   cam_method_arg)
+                else:
+                    raise RuntimeError('Only one camera attribute per "tick" is supported. '
+                                       'Please fix: ' + str(cam_attr_str))
 
 def __get_image(cam):
     """ Gets image as a numpy array from input camera """
@@ -204,12 +246,16 @@ def find_primary(cam_serial_or_yaml_path):
     cam_serial = __get_serial(cam_serial_or_yaml_path)
     __CAM_PRIMARY = __find_cam(cam_serial)
 
+    print('Found primary camera with serial: ' + cam_serial)
+
 def find_secondary(cam_serial_or_yaml_path):
     """ Finds secondary camera """
     global __CAM_SECONDARY # pylint: disable=global-statement
 
     cam_serial = __get_serial(cam_serial_or_yaml_path)
     __CAM_SECONDARY = __find_cam(cam_serial)
+
+    print('Found secondary camera with serial: ' + cam_serial)
 
 def init_primary(yaml_path=None):
     """ Initializes primary camera using optional yaml file """
@@ -272,18 +318,18 @@ def set_exposure(exposure):
 def get_frame_rate():
     """ Gets frame rate """
 
-    frame_rate_primary = float(__cam_node_cmd(__get_primary(),
-                                              'AcquisitionFrameRate',
-                                              'GetValue',
-                                              'RW'))
-    frame_rate_secondary = float(__cam_node_cmd(__get_secondary(),
-                                                'AcquisitionFrameRate',
-                                                'GetValue',
-                                                'RW'))
+    frame_rate_primary = __cam_node_cmd(__get_primary(),
+                                        'AcquisitionFrameRate',
+                                        'GetValue',
+                                        'RW')
+    frame_rate_secondary = __cam_node_cmd(__get_secondary(),
+                                          'AcquisitionFrameRate',
+                                          'GetValue',
+                                          'RW')
 
     if frame_rate_primary != frame_rate_secondary:
         warn('Primary and secondary frame rate are different: ' +
-             str([frame_rate_primary, frame_rate_secondary]) + ' ' +
+             str([frame_rate_primary, frame_rate_secondary]) +
              '. Returning the average value.')
 
         return (frame_rate_primary+frame_rate_secondary)/2
@@ -293,12 +339,12 @@ def get_frame_rate():
 def get_gain():
     """ Gets gain """
 
-    gain_primary = float(__cam_node_cmd(__get_primary(), 'Gain', 'GetValue', 'RW'))
-    gain_secondary = float(__cam_node_cmd(__get_secondary(), 'Gain', 'GetValue', 'RW'))
+    gain_primary = __cam_node_cmd(__get_primary(), 'Gain', 'GetValue', 'RW')
+    gain_secondary = __cam_node_cmd(__get_secondary(), 'Gain', 'GetValue', 'RW')
 
     if gain_primary != gain_secondary:
         warn('Primary and secondary gain are different: ' +
-             str([gain_primary, gain_secondary]) + ' ' +
+             str([gain_primary, gain_secondary]) +
              '. Returning the average value.')
 
         return (gain_primary+gain_secondary)/2
@@ -308,12 +354,12 @@ def get_gain():
 def get_exposure():
     """ Gets exposure """
 
-    exposure_primary = float(__cam_node_cmd(__get_primary(), 'ExposureTime', 'GetValue', 'RW'))
-    exposure_secondary = float(__cam_node_cmd(__get_secondary(), 'ExposureTime', 'GetValue', 'RW'))
+    exposure_primary = __cam_node_cmd(__get_primary(), 'ExposureTime', 'GetValue', 'RW')
+    exposure_secondary = __cam_node_cmd(__get_secondary(), 'ExposureTime', 'GetValue', 'RW')
 
     if exposure_primary != exposure_secondary:
         warn('Primary and secondary exposure are different: ' +
-             str([exposure_primary, exposure_secondary]) + ' ' +
+             str([exposure_primary, exposure_secondary]) +
              '. Returning the average value.')
 
         return (exposure_primary+exposure_secondary)/2
