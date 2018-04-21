@@ -48,21 +48,6 @@ init:
     - BlackLevel:
         value: 0
         access: RW
-    - BalanceWhiteAuto:
-        value: PySpin.BalanceWhiteAuto_Off
-        access: RW
-    - BalanceRatioSelector:
-        value: PySpin.BalanceRatioSelector_Red
-        access: RW
-    - BalanceRatio:
-        value: 1
-        access: RW
-    - BalanceRatioSelector:
-        value: PySpin.BalanceRatioSelector_Blue
-        access: RW
-    - BalanceRatio:
-        value: 1
-        access: RW
     - GammaEnable:
         value: False
         access: RW
@@ -70,5 +55,5 @@ init:
         value: PySpin.PixelFormat_Mono16
         access: RW
     - AdcBitDepth:
-        value: PySpin.AdcBitDepth_Bit14
+        value: PySpin.AdcBitDepth_Bit12
         access: RW

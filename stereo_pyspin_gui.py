@@ -2,7 +2,7 @@
 
 """ GUI for setting up stereo cameras with PySpin library """
 
-# pylint: disable=line-too-long,global-statement
+# pylint: disable=global-statement
 
 import sys
 import threading
@@ -88,7 +88,10 @@ def __start_acquisition_primary(_=None):
     print('Starting primary camera acquisition...')
     # Make sure it isn't already streaming
     if not __STREAM_PRIMARY:
+        # Start streaming on camera
         stereo_pyspin.start_acquisition_primary()
+
+        # Set up thread
         __STREAM_PRIMARY = True
         __THREAD_PRIMARY = threading.Thread(target=__stream_image_primary)
         __THREAD_PRIMARY.start()
@@ -100,7 +103,10 @@ def __start_acquisition_secondary(_=None):
     print('Starting secondary camera acquisition...')
     # Make sure it isn't already streaming
     if not __STREAM_SECONDARY:
+        # Start streaming on camera
         stereo_pyspin.start_acquisition_secondary()
+
+        # Set up thread
         __STREAM_SECONDARY = True
         __THREAD_SECONDARY = threading.Thread(target=__stream_image_secondary)
         __THREAD_SECONDARY.start()
@@ -112,7 +118,10 @@ def __stop_acquisition_primary(_=None):
     # Make sure we're actually streaming
     print('Stopping primary camera acquisition...')
     if __STREAM_PRIMARY:
+        # Stop streaming on camera
         stereo_pyspin.end_acquisition_primary()
+
+        # Set up thread
         __STREAM_PRIMARY = False
         __THREAD_PRIMARY.join()
         __THREAD_PRIMARY = None
@@ -124,7 +133,10 @@ def __stop_acquisition_secondary(_=None):
     # Make sure we're actually streaming
     print('Stopping secondary camera acquisition...')
     if __STREAM_SECONDARY:
+        # Stop streaming on camera
         stereo_pyspin.end_acquisition_secondary()
+
+        # Set up thread
         __STREAM_SECONDARY = False
         __THREAD_SECONDARY.join()
         __THREAD_SECONDARY = None
@@ -236,6 +248,42 @@ def __exposure_text(_=None):
     __GUI_DICT['exposure_slider'].eventson = False
     __GUI_DICT['exposure_slider'].set_val(exposure)
     __GUI_DICT['exposure_slider'].eventson = True
+
+def __save_images(_=None):
+    """ save images callback """
+    global __THREAD_PRIMARY, __STREAM_PRIMARY
+    global __THREAD_SECONDARY, __STREAM_SECONDARY
+
+    # Cache whether streams are running or not
+    stream_primary = __STREAM_PRIMARY
+    stream_secondary = __STREAM_SECONDARY
+
+    # Get name format, counter, and number of images
+    name_format = __GUI_DICT['name_format_text'].text
+    counter = int(__GUI_DICT['counter_text'].text)
+    num_images = int(__GUI_DICT['save_images_text'].text)
+
+#    # Stop streams
+#    __stop_acquisition_primary()
+#    __stop_acquisition_secondary()
+#
+#    # Start acquisition
+#    stereo_pyspin.start_acquisition_primary()
+#    stereo_pyspin.start_acquisition_secondary()
+#
+#    # Grab images
+#    image_primary = stereo_pyspin.get_image_primary()
+#    image_secondary = stereo_pyspin.get_image_secondary()
+#
+#    # Stop acquisition
+#    stereo_pyspin.end_acquisition_primary()
+#    stereo_pyspin.end_acquisition_secondary()
+#
+#    # Start them if they were running originally
+#    if stream_primary:
+#        __start_acquisition_primary()
+#    if stream_secondary:
+#        __start_acquisition_secondary()
 
 # -------------- #
 # GUI            #
@@ -365,9 +413,15 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
     # Set initial values
     cam_plot_primary_dict['find_and_init_text'].set_val('primary.yaml')
     # Set callbacks
-    cam_plot_primary_dict['find_and_init_button'].on_clicked(__message_box_func_wrapper(__find_and_init_primary))
-    cam_plot_primary_dict['start_acquisition_button'].on_clicked(__message_box_func_wrapper(__start_acquisition_primary))
-    cam_plot_primary_dict['stop_acquisition_button'].on_clicked(__message_box_func_wrapper(__stop_acquisition_primary))
+    cam_plot_primary_dict['find_and_init_button'].on_clicked(
+        __message_box_func_wrapper(__find_and_init_primary)
+    )
+    cam_plot_primary_dict['start_acquisition_button'].on_clicked(
+        __message_box_func_wrapper(__start_acquisition_primary)
+    )
+    cam_plot_primary_dict['stop_acquisition_button'].on_clicked(
+        __message_box_func_wrapper(__stop_acquisition_primary)
+    )
 
     # Secondary camera plot
     cam_secondary_pos = [cam_primary_pos[0]+cam_primary_pos[2],
@@ -382,9 +436,15 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
     # Set initial values
     cam_plot_secondary_dict['find_and_init_text'].set_val('secondary.yaml')
     # Set callbacks
-    cam_plot_secondary_dict['find_and_init_button'].on_clicked(__message_box_func_wrapper(__find_and_init_secondary))
-    cam_plot_secondary_dict['start_acquisition_button'].on_clicked(__message_box_func_wrapper(__start_acquisition_secondary))
-    cam_plot_secondary_dict['stop_acquisition_button'].on_clicked(__message_box_func_wrapper(__stop_acquisition_secondary))
+    cam_plot_secondary_dict['find_and_init_button'].on_clicked(
+        __message_box_func_wrapper(__find_and_init_secondary)
+    )
+    cam_plot_secondary_dict['start_acquisition_button'].on_clicked(
+        __message_box_func_wrapper(__start_acquisition_secondary)
+    )
+    cam_plot_secondary_dict['stop_acquisition_button'].on_clicked(
+        __message_box_func_wrapper(__stop_acquisition_secondary)
+    )
 
     # FPS
     fps_pos = [0, cam_primary_pos[1]-options_height, 1, options_height]
@@ -445,28 +505,32 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
     counter_text.label.set_fontsize(7)
     counter_text.set_val(1)
 
-    # Set save image button
-    save_image_button_pos = [padding,
-                             name_format_pos[1]-options_height-padding,
-                             0.5-2*padding,
-                             options_height]
-    save_image_button_axes = fig.add_axes(save_image_button_pos)
-    save_image_button = Button(save_image_button_axes, 'Save Image(s)')
-    save_image_button.label.set_fontsize(7)
+    # Set save images button
+    save_images_button_pos = [padding,
+                              name_format_pos[1]-options_height-padding,
+                              0.5-2*padding,
+                              options_height]
+    save_images_button_axes = fig.add_axes(save_images_button_pos)
+    save_images_button = Button(save_images_button_axes, 'Save Image(s)')
+    save_images_button.label.set_fontsize(7)
+    # Set callback
+    save_images_button.on_clicked(
+        __message_box_func_wrapper(__save_images)
+    )
 
     # Set save image text
-    save_image_text_pos = [save_image_button_pos[0]+save_image_button_pos[2]+padding+(0.5-2*padding)*0.1875+2*padding,
-                           name_format_pos[1]-options_height-padding,
-                           (0.5-2*padding)*0.8125-padding,
-                           options_height]
-    save_image_text_axes = fig.add_axes(save_image_text_pos)
-    save_image_text = TextBox(save_image_text_axes, '#')
-    save_image_text.label.set_fontsize(7)
-    save_image_text.set_val(1)
+    save_images_text_pos = [save_images_button_pos[0]+save_images_button_pos[2]+padding+(0.5-2*padding)*0.1875+2*padding, # pylint: disable=line-too-long
+                            name_format_pos[1]-options_height-padding,
+                            (0.5-2*padding)*0.8125-padding,
+                            options_height]
+    save_images_text_axes = fig.add_axes(save_images_text_pos)
+    save_images_text = TextBox(save_images_text_axes, '#')
+    save_images_text.label.set_fontsize(7)
+    save_images_text.set_val(1)
 
     # Set save config button
     save_config_button_pos = [padding,
-                              save_image_button_pos[1]-options_height-padding,
+                              save_images_button_pos[1]-options_height-padding,
                               1-2*padding,
                               options_height]
     save_config_button_axes = fig.add_axes(save_config_button_pos)
@@ -484,8 +548,8 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
             'exposure_text': exposure_text,
             'name_format_text': name_format_text,
             'counter_text': counter_text,
-            'save_image_button': save_image_button,
-            'save_image_text': save_image_text,
+            'save_images_button': save_images_button,
+            'save_images_text': save_images_text,
             'save_config_button': save_config_button}
 
 # -------------- #

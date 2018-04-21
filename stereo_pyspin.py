@@ -17,7 +17,9 @@ import PySpin
 # are any references to cameras remaining
 __SYSTEM = PySpin.System.GetInstance()
 
-# Cameras must be found before they are used
+__SERIAL_PRIMARY = None
+__SERIAL_SECONDARY = None
+
 __CAM_PRIMARY = None
 __CAM_SECONDARY = None
 
@@ -81,17 +83,17 @@ def __cam_node_cmd(cam, cam_attr_str, cam_method_str, pyspin_mode_str=None, cam_
     for sub_cam_attr_str in cam_attr_str_split:
         cam_attr = getattr(cam_attr, sub_cam_attr_str)
 
-    # Perform optional access mode check
-    if pyspin_mode_str is not None:
-        if cam_attr.GetAccessMode() != getattr(PySpin, pyspin_mode_str):
-            raise RuntimeError('Access mode check failed for: "' + cam_attr_str + '" with mode: "' +
-                               pyspin_mode_str + '".')
-
     # Print command info
     info_str = 'Executing: "' + '.'.join([cam_attr_str, cam_method_str]) + '('
     if cam_method_arg is not None:
         info_str += str(cam_method_arg)
     print(info_str + ')"')
+
+    # Perform optional access mode check
+    if pyspin_mode_str is not None:
+        if cam_attr.GetAccessMode() != getattr(PySpin, pyspin_mode_str):
+            raise RuntimeError('Access mode check failed for: "' + cam_attr_str + '" with mode: "' +
+                               pyspin_mode_str + '".')
 
     # Format command argument in case it's a string containing a PySpin attribute
     if isinstance(cam_method_arg, str):
@@ -116,20 +118,22 @@ def __find_cam(cam_serial):
     cam_list = __SYSTEM.GetCameras()
 
     # Find camera matching serial
-    cam = None
+    cam_match = None
     for i in range(cam_list.GetSize()):
         # Get camera
         cam = cam_list.GetByIndex(i)
 
         # Compare serial number
         if cam_serial == __cam_node_cmd(cam, 'TLDevice.DeviceSerialNumber', 'GetValue', 'RO'):
+            # This is a match, so exit loop
+            cam_match = cam
             break
 
     # Check to see if match was found
-    if cam is None:
+    if cam_match is None:
         raise RuntimeError('Could not find camera with serial: "' + str(cam_serial) + '".')
 
-    return cam
+    return cam_match
 
 def __init_cam(cam, yaml_path=None): # pylint: disable=too-many-branches
     """ Initializes input camera given optional path to yaml file """
@@ -216,10 +220,10 @@ def __get_image(cam):
     return image_data
 
 # ------------------- #
-# "private" functions #
+# "private" method    #
 # ------------------- #
 
-def __get_primary():
+def __get_cam_primary():
     """ Returns primary camera """
 
     if __CAM_PRIMARY is None:
@@ -227,7 +231,7 @@ def __get_primary():
 
     return __CAM_PRIMARY
 
-def __get_secondary():
+def __get_cam_secondary():
     """ Returns secondary camera """
 
     if __CAM_SECONDARY is None:
@@ -236,96 +240,52 @@ def __get_secondary():
     return __CAM_SECONDARY
 
 # ------------------- #
-# "public" functions  #
+# "public" methods    #
 # ------------------- #
 
 def find_primary(cam_serial_or_yaml_path):
     """ Finds primary camera """
-    global __CAM_PRIMARY # pylint: disable=global-statement
+    global __CAM_PRIMARY, __SERIAL_PRIMARY # pylint: disable=global-statement
 
-    cam_serial = __get_serial(cam_serial_or_yaml_path)
-    __CAM_PRIMARY = __find_cam(cam_serial)
+    __SERIAL_PRIMARY = __get_serial(cam_serial_or_yaml_path)
+    __CAM_PRIMARY = __find_cam(__SERIAL_PRIMARY)
 
-    print('Found primary camera with serial: ' + cam_serial)
+    print('Found primary camera with serial: ' + __SERIAL_PRIMARY)
 
 def find_secondary(cam_serial_or_yaml_path):
     """ Finds secondary camera """
-    global __CAM_SECONDARY # pylint: disable=global-statement
+    global __CAM_SECONDARY, __SERIAL_SECONDARY # pylint: disable=global-statement
 
-    cam_serial = __get_serial(cam_serial_or_yaml_path)
-    __CAM_SECONDARY = __find_cam(cam_serial)
+    __SERIAL_SECONDARY = __get_serial(cam_serial_or_yaml_path)
+    __CAM_SECONDARY = __find_cam(__SERIAL_SECONDARY)
 
-    print('Found secondary camera with serial: ' + cam_serial)
+    print('Found secondary camera with serial: ' + __SERIAL_SECONDARY)
 
-def init_primary(yaml_path=None):
-    """ Initializes primary camera using optional yaml file """
+def get_serial_primary():
+    """ Returns primary camera serial number """
 
-    __init_cam(__get_primary(), yaml_path)
+    if __SERIAL_PRIMARY is None:
+        raise RuntimeError('Primary camera has not been found yet!')
 
-def init_secondary(yaml_path=None):
-    """ Initializes secondary camera using optional yaml file """
+    return __SERIAL_PRIMARY
 
-    __init_cam(__get_secondary(), yaml_path)
+def get_serial_secondary():
+    """ Returns secondary camera serial number """
 
-def start_acquisition_primary():
-    """ Starts acquisition of primary camera """
+    if __SERIAL_SECONDARY is None:
+        raise RuntimeError('Secondary camera has not been found yet!')
 
-    __get_primary().BeginAcquisition()
-
-def start_acquisition_secondary():
-    """ Starts acquisition of secondary camera """
-
-    __get_secondary().BeginAcquisition()
-
-def end_acquisition_primary():
-    """ Ends acquisition of primary camera """
-
-    __get_primary().EndAcquisition()
-
-def end_acquisition_secondary():
-    """ Ends acquisition of secondary camera """
-
-    __get_secondary().EndAcquisition()
-
-def deinit_primary():
-    """ De-initializes primary camera """
-
-    __get_primary().DeInit()
-
-def deinit_secondary():
-    """ De-initializes secondary camera """
-
-    __get_secondary().DeInit()
-
-def set_frame_rate(frame_rate):
-    """ Sets frame rate for both cameras """
-
-    __cam_node_cmd(__get_primary(), 'AcquisitionFrameRate', 'SetValue', 'RW', frame_rate)
-    __cam_node_cmd(__get_secondary(), 'AcquisitionFrameRate', 'SetValue', 'RW', frame_rate)
-
-def set_gain(gain):
-    """ Sets gain for both cameras """
-
-    __cam_node_cmd(__get_primary(), 'Gain', 'SetValue', 'RW', gain)
-    __cam_node_cmd(__get_secondary(), 'Gain', 'SetValue', 'RW', gain)
-
-def set_exposure(exposure):
-    """ Sets exposure for both cameras """
-
-    __cam_node_cmd(__get_primary(), 'ExposureTime', 'SetValue', 'RW', exposure)
-    __cam_node_cmd(__get_secondary(), 'ExposureTime', 'SetValue', 'RW', exposure)
+    return __SERIAL_SECONDARY
 
 def get_frame_rate():
     """ Gets frame rate """
 
-    frame_rate_primary = __cam_node_cmd(__get_primary(),
+    frame_rate_primary = __cam_node_cmd(__get_cam_primary(),
                                         'AcquisitionFrameRate',
-                                        'GetValue',
-                                        'RW')
-    frame_rate_secondary = __cam_node_cmd(__get_secondary(),
+                                        'GetValue')
+    frame_rate_secondary = __cam_node_cmd(__get_cam_secondary(),
                                           'AcquisitionFrameRate',
-                                          'GetValue',
-                                          'RW')
+                                          'GetValue')
 
     if frame_rate_primary != frame_rate_secondary:
         warn('Primary and secondary frame rate are different: ' +
@@ -339,8 +299,8 @@ def get_frame_rate():
 def get_gain():
     """ Gets gain """
 
-    gain_primary = __cam_node_cmd(__get_primary(), 'Gain', 'GetValue', 'RW')
-    gain_secondary = __cam_node_cmd(__get_secondary(), 'Gain', 'GetValue', 'RW')
+    gain_primary = __cam_node_cmd(__get_cam_primary(), 'Gain', 'GetValue')
+    gain_secondary = __cam_node_cmd(__get_cam_secondary(), 'Gain', 'GetValue')
 
     if gain_primary != gain_secondary:
         warn('Primary and secondary gain are different: ' +
@@ -354,8 +314,8 @@ def get_gain():
 def get_exposure():
     """ Gets exposure """
 
-    exposure_primary = __cam_node_cmd(__get_primary(), 'ExposureTime', 'GetValue', 'RW')
-    exposure_secondary = __cam_node_cmd(__get_secondary(), 'ExposureTime', 'GetValue', 'RW')
+    exposure_primary = __cam_node_cmd(__get_cam_primary(), 'ExposureTime', 'GetValue')
+    exposure_secondary = __cam_node_cmd(__get_cam_secondary(), 'ExposureTime', 'GetValue')
 
     if exposure_primary != exposure_secondary:
         warn('Primary and secondary exposure are different: ' +
@@ -369,9 +329,67 @@ def get_exposure():
 def get_image_primary():
     """ Gets image from primary camera """
 
-    return __get_image(__get_primary())
+    return __get_image(__get_cam_primary())
 
 def get_image_secondary():
     """ Gets image from secondary camera """
 
-    return __get_image(__get_secondary())
+    return __get_image(__get_cam_secondary())
+
+def set_frame_rate(frame_rate):
+    """ Sets frame rate for both cameras """
+
+    __cam_node_cmd(__get_cam_primary(), 'AcquisitionFrameRate', 'SetValue', 'RW', frame_rate)
+    __cam_node_cmd(__get_cam_secondary(), 'AcquisitionFrameRate', 'SetValue', 'RW', frame_rate)
+
+def set_gain(gain):
+    """ Sets gain for both cameras """
+
+    __cam_node_cmd(__get_cam_primary(), 'Gain', 'SetValue', 'RW', gain)
+    __cam_node_cmd(__get_cam_secondary(), 'Gain', 'SetValue', 'RW', gain)
+
+def set_exposure(exposure):
+    """ Sets exposure for both cameras """
+
+    __cam_node_cmd(__get_cam_primary(), 'ExposureTime', 'SetValue', 'RW', exposure)
+    __cam_node_cmd(__get_cam_secondary(), 'ExposureTime', 'SetValue', 'RW', exposure)
+
+def init_primary(yaml_path=None):
+    """ Initializes primary camera using optional yaml file """
+
+    __init_cam(__get_cam_primary(), yaml_path)
+
+def init_secondary(yaml_path=None):
+    """ Initializes secondary camera using optional yaml file """
+
+    __init_cam(__get_cam_secondary(), yaml_path)
+
+def start_acquisition_primary():
+    """ Starts acquisition of primary camera """
+
+    __get_cam_primary().BeginAcquisition()
+
+def start_acquisition_secondary():
+    """ Starts acquisition of secondary camera """
+
+    __get_cam_secondary().BeginAcquisition()
+
+def end_acquisition_primary():
+    """ Ends acquisition of primary camera """
+
+    __get_cam_primary().EndAcquisition()
+
+def end_acquisition_secondary():
+    """ Ends acquisition of secondary camera """
+
+    __get_cam_secondary().EndAcquisition()
+
+def deinit_primary():
+    """ De-initializes primary camera """
+
+    __get_cam_primary().DeInit()
+
+def deinit_secondary():
+    """ De-initializes secondary camera """
+
+    __get_cam_secondary().DeInit()
