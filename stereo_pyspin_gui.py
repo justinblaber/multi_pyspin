@@ -561,7 +561,7 @@ def __plot_image(image, image_axes, imshow_dict):
 
     # TODO: need to adjust max intensity based on bit depth
 
-    max_val = 255
+    max_val = 65535
 
     if image is not None:
         if image.shape == imshow_dict['imshow_size']:
@@ -584,8 +584,8 @@ def __plot_hist(image, hist_axes, hist_dict):
 
     # TODO: need to adjust max intensity based on bit depth
 
+    max_val = 65535
     num_bins = 100
-    max_val = 255
 
     hist, bins = np.histogram(image.ravel(), normed=True, bins=num_bins, range=(0, max_val))
     if hist_dict['bar'] is not None:
