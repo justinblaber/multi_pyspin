@@ -2,9 +2,19 @@
 
 """ GUI for setting up stereo cameras with PySpin library """
 
+# NOTE: It appears basically nothing in matplotlib and PySpin is
+# threadsafe (to my knowdege; at the time this was written). For
+# now, everything not threadsafe is locked with a single global
+# lock. I know this is terrible because it basically means things
+# are running in serial, but with the GIL issues and
+# matplotlib/PySpin issues this was basically the only thing I
+# tried that worked without seg faulting. Overal streaming
+# performance is not very good but was "good enough" for my purposes.
+
 # pylint: disable=global-statement
 
 import sys
+import time
 import threading
 from warnings import warn
 from tkinter import messagebox
@@ -20,13 +30,14 @@ import stereo_pyspin
 
 # These are min/max values for BFS-U3-32S4M camera
 __FPS_MIN = 1
-__FPS_MAX = 118
-__GAIN_MIN = 0        # Units are dB
-__GAIN_MAX = 47       # Units are dB
-__EXPOSURE_MIN = 5e-6 # Units are seconds
-__EXPOSURE_MAX = 30   # Units are seconds
+__FPS_MAX = 60              # Manual says 118, but tests indicate its actually 60
+__GAIN_MIN = 0              # Units are dB
+__GAIN_MAX = 47             # Units are dB
+__EXPOSURE_MIN = 6          # units must be micro seconds
+__EXPOSURE_MAX = 29999999   # units must be micro seconds
 
 # Set up streaming params
+__LOCK = threading.Lock()
 __THREAD_PRIMARY = None
 __THREAD_SECONDARY = None
 __STREAM_PRIMARY = False
@@ -607,45 +618,53 @@ def __stream_image_primary():
     """ stream update of primary image """
     global __IMSHOW_PRIMARY_DICT, __HIST_PRIMARY_DICT
 
-    print('Primary image stream starting...')
-
     while __STREAM_PRIMARY and plt.fignum_exists(__GUI_DICT['fig'].number):
-        # Get image
-        image = stereo_pyspin.get_image_primary()
+        with __LOCK:
+            # Get image
+            image = stereo_pyspin.get_image_primary()
 
-        # Plot image
-        __IMSHOW_PRIMARY_DICT = __plot_image(image,
-                                             __GUI_DICT['cam_plot_primary_dict']['image_axes'],
-                                             __IMSHOW_PRIMARY_DICT)
+            # Plot image
+            __IMSHOW_PRIMARY_DICT = __plot_image(image,
+                                                 __GUI_DICT['cam_plot_primary_dict']['image_axes'],
+                                                 __IMSHOW_PRIMARY_DICT)
 
-        # Plot histogram
-        __HIST_PRIMARY_DICT = __plot_hist(image,
-                                          __GUI_DICT['cam_plot_primary_dict']['hist_axes'],
-                                          __HIST_PRIMARY_DICT)
+            # Plot histogram
+            __HIST_PRIMARY_DICT = __plot_hist(image,
+                                              __GUI_DICT['cam_plot_primary_dict']['hist_axes'],
+                                              __HIST_PRIMARY_DICT)
 
-    print('Primary image stream ended.')
+            import datetime
+            print('primary: ' + str(datetime.datetime.now()))
+            sys.stdout.flush()
+
+        # Pause for a little bit. This seems to allow threads to switch around
+        time.sleep(sys.float_info.min)
 
 def __stream_image_secondary():
     """ stream update of secondary image """
     global __IMSHOW_SECONDARY_DICT, __HIST_SECONDARY_DICT
 
-    print('Secondary image stream starting...')
-
     while __STREAM_SECONDARY and plt.fignum_exists(__GUI_DICT['fig'].number):
-        # Get image
-        image = stereo_pyspin.get_image_secondary()
+        with __LOCK:
+            # Get image
+            image = stereo_pyspin.get_image_secondary()
 
-        # Plot image
-        __IMSHOW_SECONDARY_DICT = __plot_image(image,
-                                               __GUI_DICT['cam_plot_secondary_dict']['image_axes'],
-                                               __IMSHOW_SECONDARY_DICT)
+            # Plot image
+            __IMSHOW_SECONDARY_DICT = __plot_image(image,
+                                                   __GUI_DICT['cam_plot_secondary_dict']['image_axes'],
+                                                   __IMSHOW_SECONDARY_DICT)
 
-        # Plot histogram
-        __HIST_SECONDARY_DICT = __plot_hist(image,
-                                            __GUI_DICT['cam_plot_secondary_dict']['hist_axes'],
-                                            __HIST_SECONDARY_DICT)
+            # Plot histogram
+            __HIST_SECONDARY_DICT = __plot_hist(image,
+                                                __GUI_DICT['cam_plot_secondary_dict']['hist_axes'],
+                                                __HIST_SECONDARY_DICT)
 
-    print('Secondary image stream ended.')
+            import datetime
+            print('secondary: ' + str(datetime.datetime.now()))
+            sys.stdout.flush()
+
+        # Pause for a little bit. This seems to allow threads to switch around
+        time.sleep(sys.float_info.min)
 
 # -------------- #
 # Start gui      #
@@ -664,14 +683,20 @@ def main():
 
     # Update plot while figure exists
     while plt.fignum_exists(__GUI_DICT['fig'].number): # pylint: disable=unsubscriptable-object
-        try:
-            plt.pause(sys.float_info.min)
-        except: # pylint: disable=bare-except
-            if plt.fignum_exists(__GUI_DICT['fig'].number):
-                # Only re-raise error if figure is still open
-                raise
+        with __LOCK:
+            try:
+                plt.pause(sys.float_info.min)
+            except: # pylint: disable=bare-except
+                if plt.fignum_exists(__GUI_DICT['fig'].number):
+                    # Only re-raise error if figure is still open
+                    raise
 
-    print('Exiting...')
+            import datetime
+            print('plot: ' + str(datetime.datetime.now()))
+            sys.stdout.flush()
+
+        # Pause for a little bit. This seems to allow threads to switch around
+        time.sleep(sys.float_info.min)
 
     # Clean up threads
     __stop_acquisition_primary()
@@ -683,6 +708,8 @@ def main():
 
     # Clean up GUI
     __GUI_DICT = None
+
+    print('Exiting...')
 
     return 0
 
