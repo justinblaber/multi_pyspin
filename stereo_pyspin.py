@@ -210,9 +210,8 @@ def __get_image(cam):
 
     # Ensure image is complete
     if not image.IsIncomplete():
-        # Reshape into array
-        image_data = image.GetData()
-        image_data = image_data.reshape(image.GetHeight(), image.GetWidth())
+        # Get data as numpy array
+        image_data = image.GetNDArray()
 
         # Release image
         image.Release()
