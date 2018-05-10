@@ -6,10 +6,11 @@
 # threadsafe (to my knowdege; at the time this was written). For
 # now, everything not threadsafe is locked with a single global
 # lock. I know this is terrible because it basically means things
-# are running in serial, but with the GIL issues and
-# matplotlib/PySpin issues this was basically the only thing I
-# tried that worked without seg faulting. Overal streaming
-# performance is not very good but was "good enough" for my purposes.
+# are running in serial (and opens possibility of dead locks), 
+# but with the GIL issues and matplotlib/PySpin issues this was
+# basically the only thing I tried that worked without seg faulting.
+# Overal streaming performance is not very good but was "good enough"
+# for my purposes.
 
 # pylint: disable=global-statement
 
