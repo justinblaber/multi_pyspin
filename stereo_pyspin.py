@@ -5,6 +5,7 @@
 import os
 import atexit
 from warnings import warn
+from contextlib import suppress
 
 import yaml
 import PySpin
@@ -27,12 +28,30 @@ __CAM_SECONDARY = None
 # destructor          #
 # ------------------- %
 
-# This ensures camera references are removed before releasing the system
 def __destructor():
-    """ Removes references to cameras before releasing system """
+    """ "cleans up" and removes references to cameras before releasing system """
     global __CAM_PRIMARY, __CAM_SECONDARY # pylint: disable=global-statement
 
-    # Clear cameras
+    print('Cleaning up stereo_pyspin...')
+
+    # NOTE: it might actually be a nice feature to allow cameras to remain
+    # initialized and streaming after exiting stereo_pyspin... but I think
+    # the destructor for System object prevents this. Maybe come back to
+    # this later.
+
+    # "clean up" primary camera
+    with suppress(Exception):
+        end_acquisition_primary()
+    with suppress(Exception):
+        deinit_primary()
+
+    # "clean up" secondary camera
+    with suppress(Exception):
+        end_acquisition_secondary()
+    with suppress(Exception):
+        deinit_secondary()
+
+    # Clear camera references
     __CAM_PRIMARY = None
     __CAM_SECONDARY = None
 
@@ -70,12 +89,7 @@ def __get_serial(cam_serial_or_yaml_path):
 
     return cam_serial
 
-def __cam_node_cmd(cam, # pylint: disable=too-many-arguments
-                   cam_attr_str,
-                   cam_method_str,
-                   pyspin_mode_str=None,
-                   cam_method_arg=None,
-                   debug=True):
+def __cam_node_cmd(cam, cam_attr_str, cam_method_str, pyspin_mode_str=None, cam_method_arg=None):
     """ Performs cam_method on input cam and attribute with optional access mode check  """
 
     # First, get camera attribute
@@ -85,11 +99,10 @@ def __cam_node_cmd(cam, # pylint: disable=too-many-arguments
         cam_attr = getattr(cam_attr, sub_cam_attr_str)
 
     # Print command info
-    if debug:
-        info_str = 'Executing: "' + '.'.join([cam_attr_str, cam_method_str]) + '('
-        if cam_method_arg is not None:
-            info_str += str(cam_method_arg)
-        print(info_str + ')"')
+    info_str = 'Executing: "' + '.'.join([cam_attr_str, cam_method_str]) + '('
+    if cam_method_arg is not None:
+        info_str += str(cam_method_arg)
+    print(info_str + ')"')
 
     # Perform optional access mode check
     if pyspin_mode_str is not None:
@@ -218,8 +231,12 @@ def __get_image(cam):
         # Get data as numpy array
         image_data = image.GetNDArray()
 
-        # Release image
-        image.Release()
+    # NOTE: one pyspin example released all images, even incomplete
+    # ones, while another released only complete images. I'm assuming
+    # all image needs to be released...
+
+    # Release image
+    image.Release()
 
     return image_data
 
@@ -227,7 +244,7 @@ def __validate_cam(cam, cam_str):
     """ Checks to see if camera is valid """
 
     # NOTE: as of 10-May-2018 the IsValid() method does not work, but
-    # keep it here to make code future proof
+    # I've kept it here to make the code future proof
 
     if not cam.IsValid():
         raise RuntimeError(cam_str + ' cam is not valid. Please find() it.')
@@ -314,25 +331,31 @@ def __get_and_validate_streaming_cam_secondary():
 # "public" methods    #
 # ------------------- #
 
-def find_primary(cam_serial_or_yaml_path, debug=True):
+def find_primary(cam_serial_or_yaml_path):
     """ Finds primary camera """
     global __CAM_PRIMARY # pylint: disable=global-statement
+
+    # NOTE: Before finding primary camera, possibly check to
+    # see if a previous primary camera was found; if so clean
+    # it up
 
     serial_primary = __get_serial(cam_serial_or_yaml_path)
     __CAM_PRIMARY = __find_cam(serial_primary)
 
-    if debug:
-        print('Found primary camera with serial: ' + serial_primary)
+    print('Found primary camera with serial: ' + serial_primary)
 
-def find_secondary(cam_serial_or_yaml_path, debug=True):
+def find_secondary(cam_serial_or_yaml_path):
     """ Finds secondary camera """
     global __CAM_SECONDARY # pylint: disable=global-statement
+
+    # NOTE: Before finding secondary camera, possibly check to
+    # see if a previous secondary camera was found; if so clean
+    # it up
 
     serial_secondary = __get_serial(cam_serial_or_yaml_path)
     __CAM_SECONDARY = __find_cam(serial_secondary)
 
-    if debug:
-        print('Found secondary camera with serial: ' + serial_secondary)
+    print('Found secondary camera with serial: ' + serial_secondary)
 
 def get_serial_primary():
     """ Returns primary camera serial number """
@@ -404,16 +427,10 @@ def get_exposure():
 def get_image_primary():
     """ Gets image from primary camera """
 
-    # TODO: if validating camera is streaming adds a delay,
-    # possibly add option to skip validation
-
     return __get_image(__get_and_validate_streaming_cam_primary())
 
 def get_image_secondary():
     """ Gets image from secondary camera """
-
-    # TODO: if validating camera is streaming adds a delay,
-    # possibly add option to skip validation
 
     return __get_image(__get_and_validate_streaming_cam_secondary())
 

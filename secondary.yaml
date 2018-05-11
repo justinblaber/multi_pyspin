@@ -28,7 +28,7 @@ init:
         value: True
         access: RW
     - AcquisitionFrameRate:
-        value: 20
+        value: 60
         access: RW
     - ExposureMode:
         value: PySpin.ExposureMode_Timed
