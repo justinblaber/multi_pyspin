@@ -29,8 +29,7 @@ __CAM_SECONDARY = None
 # ------------------- %
 
 def __destructor():
-    """ "cleans up" and removes references to cameras before releasing system """
-    global __CAM_PRIMARY, __CAM_SECONDARY # pylint: disable=global-statement
+    """ Handles the release of the PySpin System object """
 
     print('Cleaning up stereo_pyspin...')
 
@@ -39,21 +38,15 @@ def __destructor():
     # the destructor for System object prevents this. Maybe come back to
     # this later.
 
-    # "clean up" primary camera
-    with suppress(Exception):
-        end_acquisition_primary()
-    with suppress(Exception):
-        deinit_primary()
+    # Clean up primary and secondary cameras
+    __cleanup_primary_cam()
+    __cleanup_secondary_cam()
 
-    # "clean up" secondary camera
-    with suppress(Exception):
-        end_acquisition_secondary()
-    with suppress(Exception):
-        deinit_secondary()
-
-    # Clear camera references
-    __CAM_PRIMARY = None
-    __CAM_SECONDARY = None
+    # Debug output if system is still in use some how
+    if __SYSTEM.IsInUse():
+        print('System is still in use? How can this be? Printing all globals:')
+        for name, value in globals().items():
+            print(name, value)
 
     # Now clear system
     __SYSTEM.ReleaseInstance()
@@ -232,8 +225,9 @@ def __get_image(cam):
         image_data = image.GetNDArray()
 
     # NOTE: one pyspin example released all images, even incomplete
-    # ones, while another released only complete images. I'm assuming
-    # all image needs to be released...
+    # ones, while another released only complete images... So I'm
+    # not entirely sure which is appropriate. For now I'm assuming
+    # all images need to be released.
 
     # Release image
     image.Release()
@@ -327,6 +321,32 @@ def __get_and_validate_streaming_cam_secondary():
     __validate_cam_streaming(cam_secondary, 'Secondary')
     return cam_secondary
 
+def __cleanup_primary_cam():
+    """ This will "clean up" primary camera """
+    global __CAM_PRIMARY # pylint: disable=global-statement
+
+    # End acquisition and de-init
+    with suppress(Exception):
+        end_acquisition_primary()
+    with suppress(Exception):
+        deinit_primary()
+
+    # Clear camera reference
+    __CAM_PRIMARY = None
+
+def __cleanup_secondary_cam():
+    """ This will "clean up" secondary camera """
+    global __CAM_SECONDARY # pylint: disable=global-statement
+
+    # End acquisition and de-init
+    with suppress(Exception):
+        end_acquisition_secondary()
+    with suppress(Exception):
+        deinit_secondary()
+
+    # Clear camera references
+    __CAM_SECONDARY = None
+
 # ------------------- #
 # "public" methods    #
 # ------------------- #
@@ -335,12 +355,15 @@ def find_primary(cam_serial_or_yaml_path):
     """ Finds primary camera """
     global __CAM_PRIMARY # pylint: disable=global-statement
 
-    # NOTE: Before finding primary camera, possibly check to
-    # see if a previous primary camera was found; if so clean
-    # it up
-
+    # Find camera
     serial_primary = __get_serial(cam_serial_or_yaml_path)
-    __CAM_PRIMARY = __find_cam(serial_primary)
+    cam_primary = __find_cam(serial_primary)
+
+    # Cleanup AFTER new camera is found successfully
+    __cleanup_primary_cam()
+
+    # Assign camera
+    __CAM_PRIMARY = cam_primary
 
     print('Found primary camera with serial: ' + serial_primary)
 
@@ -348,12 +371,15 @@ def find_secondary(cam_serial_or_yaml_path):
     """ Finds secondary camera """
     global __CAM_SECONDARY # pylint: disable=global-statement
 
-    # NOTE: Before finding secondary camera, possibly check to
-    # see if a previous secondary camera was found; if so clean
-    # it up
-
+    # Find camera
     serial_secondary = __get_serial(cam_serial_or_yaml_path)
-    __CAM_SECONDARY = __find_cam(serial_secondary)
+    cam_secondary = __find_cam(serial_secondary)
+
+    # Cleanup AFTER new camera is found successfully
+    __cleanup_secondary_cam()
+
+    # Assign camera
+    __CAM_SECONDARY = cam_secondary
 
     print('Found secondary camera with serial: ' + serial_secondary)
 
