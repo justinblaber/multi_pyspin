@@ -9,6 +9,7 @@
 
 import sys
 import queue
+import datetime
 from tkinter import messagebox
 
 import numpy as np
@@ -32,10 +33,10 @@ __EXPOSURE_MAX = 29999999   # units must be micro seconds
 __QUEUE = queue.Queue()
 __STREAM_PRIMARY = False
 __STREAM_SECONDARY = False
-__IMSHOW_PRIMARY_DICT = {'imshow': None, 'imshow_size': None}
-__IMSHOW_SECONDARY_DICT = {'imshow': None, 'imshow_size': None}
-__HIST_PRIMARY_DICT = {'bar': None}
-__HIST_SECONDARY_DICT = {'bar': None}
+__IMSHOW_PRIMARY_DICT = {'imshow': None, 'imshow_size': None, 'max_val': None}
+__IMSHOW_SECONDARY_DICT = {'imshow': None, 'imshow_size': None, 'max_val': None}
+__HIST_PRIMARY_DICT = {'bar': None, 'max_val': None}
+__HIST_SECONDARY_DICT = {'bar': None, 'max_val': None}
 __GUI_DICT = None
 
 # -------------- #
@@ -169,7 +170,11 @@ def __fps_slider(_=None):
 def __fps_text(_=None):
     """ FPS text callback """
 
-    fps = float(__GUI_DICT['fps_text'].text)
+    fps_text = __GUI_DICT['fps_text'].text
+    if not fps_text:
+        return
+
+    fps = float(fps_text)
 
     # Update slider to match text
     __GUI_DICT['fps_slider'].eventson = False
@@ -199,7 +204,11 @@ def __gain_slider(_=None):
 def __gain_text(_=None):
     """ gain text callback """
 
-    gain = float(__GUI_DICT['gain_text'].text)
+    gain_text = __GUI_DICT['gain_text'].text
+    if not gain_text:
+        return
+
+    gain = float(gain_text)
 
     # Update slider to match text
     __GUI_DICT['gain_slider'].eventson = False
@@ -229,7 +238,11 @@ def __exposure_slider(_=None):
 def __exposure_text(_=None):
     """ exposure text callback """
 
-    exposure = float(__GUI_DICT['exposure_text'].text)
+    exposure_text = __GUI_DICT['exposure_text'].text
+    if not exposure_text:
+        return
+
+    exposure = float(exposure_text)
 
     # Update slider to match text
     __GUI_DICT['exposure_slider'].eventson = False
@@ -240,7 +253,7 @@ def __exposure_text(_=None):
     stereo_pyspin.set_exposure(exposure)
 
 #def __save_images(_=None):
-#    """ save images callback """
+#    """ Care is taken here to ensure images are taken close to each other in time """
 #    global __THREAD_PRIMARY, __STREAM_PRIMARY
 #    global __THREAD_SECONDARY, __STREAM_SECONDARY
 #
@@ -532,50 +545,47 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
 # Set up streams #
 # -------------- #
 
-def __plot_image(image, image_axes, imshow_dict):
+def __plot_image(image, max_val, image_axes, imshow_dict):
     """ plots image somewhat fast """
 
-    # TODO: need to adjust max intensity based on bit depth
-
-    max_val = 65535
-
-    if image is not None:
-        if image.shape == imshow_dict['imshow_size']:
-            # Can just "set_data" since data is the same size
-            imshow_dict['imshow'].set_data(image)
-        else:
-            # Must reset axes and re-imshow()
-            image_axes.cla()
-            imshow_dict['imshow'] = image_axes.imshow(image, cmap='gray', vmin=0, vmax=max_val)
-            imshow_dict['imshow_size'] = image.shape
-            image_axes.set_xticklabels([])
-            image_axes.set_yticklabels([])
-            image_axes.set_xticks([])
-            image_axes.set_yticks([])
+    # If image size changes or max val changes, then we must replot imshow
+    if image.shape != imshow_dict['imshow_size'] or max_val != imshow_dict['max_val']:
+        # Must reset axes and re-imshow()
+        image_axes.cla()
+        imshow_dict['imshow'] = image_axes.imshow(image, cmap='gray', vmin=0, vmax=max_val)
+        imshow_dict['imshow_size'] = image.shape
+        imshow_dict['max_val'] = max_val
+        image_axes.set_xticklabels([])
+        image_axes.set_yticklabels([])
+        image_axes.set_xticks([])
+        image_axes.set_yticks([])
+    else:
+        # Can just "set_data" since data is the same size and has the same max val
+        imshow_dict['imshow'].set_data(image)
 
     return imshow_dict
 
-def __plot_hist(image, hist_axes, hist_dict):
+def __plot_hist(image, max_val, hist_axes, hist_dict):
     """ plots histogram """
 
-    # TODO: need to adjust max intensity based on bit depth
-
-    max_val = 65535
+    # Calculate histogram
     num_bins = 100
-
     hist, bins = np.histogram(image.ravel(), normed=True, bins=num_bins, range=(0, max_val))
-    if hist_dict['bar'] is not None:
-        # Just reset height
-        for i, bar in enumerate(hist_dict['bar']): # pylint: disable=blacklisted-name
-            bar.set_height(hist[i])
-    else:
+
+    # If histogram hasn't been plotted yet or max val changes, then we must replot histogram
+    if hist_dict['bar'] is None or hist_dict['max_val'] != max_val:
         # Must reset axes and plot hist
         hist_axes.cla()
         hist_dict['bar'] = hist_axes.bar(bins[:-1], hist, color='k', width=(max_val+1)/num_bins)
+        hist_dict['max_val'] = max_val
         hist_axes.set_xticklabels([])
         hist_axes.set_yticklabels([])
         hist_axes.set_xticks([])
         hist_axes.set_yticks([])
+    else:
+        # Just reset height
+        for i, bar in enumerate(hist_dict['bar']): # pylint: disable=blacklisted-name
+            bar.set_height(hist[i])
 
     return hist_dict
 
@@ -586,18 +596,21 @@ def __stream_image_primary():
     global __IMSHOW_PRIMARY_DICT, __HIST_PRIMARY_DICT
 
     try:
-        # Get image
-        image = stereo_pyspin.get_image_primary()
+        # Get image dict
+        image_dict = stereo_pyspin.get_image_primary()
 
-        # Plot image
-        __IMSHOW_PRIMARY_DICT = __plot_image(image,
-                                             __GUI_DICT['cam_plot_primary_dict']['image_axes'],
-                                             __IMSHOW_PRIMARY_DICT)
+        if 'data' in image_dict:
+            # Plot image
+            __IMSHOW_PRIMARY_DICT = __plot_image(image_dict['data'],
+                                                 2**image_dict['bitsperpixel']-1,
+                                                 __GUI_DICT['cam_plot_primary_dict']['image_axes'],
+                                                 __IMSHOW_PRIMARY_DICT)
 
-        # Plot histogram
-        __HIST_PRIMARY_DICT = __plot_hist(image,
-                                          __GUI_DICT['cam_plot_primary_dict']['hist_axes'],
-                                          __HIST_PRIMARY_DICT)
+            # Plot histogram
+            __HIST_PRIMARY_DICT = __plot_hist(image_dict['data'],
+                                              2**image_dict['bitsperpixel']-1,
+                                              __GUI_DICT['cam_plot_primary_dict']['hist_axes'],
+                                              __HIST_PRIMARY_DICT)
     except: # pylint: disable=bare-except
         if __STREAM_PRIMARY:
             # Only re-raise error if stream is enabled
@@ -610,18 +623,21 @@ def __stream_image_secondary():
     global __IMSHOW_SECONDARY_DICT, __HIST_SECONDARY_DICT
 
     try:
-        # Get image
-        image = stereo_pyspin.get_image_secondary()
+        # Get image dict
+        image_dict = stereo_pyspin.get_image_secondary()
 
-        # Plot image
-        __IMSHOW_SECONDARY_DICT = __plot_image(image,
-                                               __GUI_DICT['cam_plot_secondary_dict']['image_axes'],
-                                               __IMSHOW_SECONDARY_DICT)
+        if 'data' in image_dict:
+            # Plot image
+            __IMSHOW_SECONDARY_DICT = __plot_image(image_dict['data'],
+                                                   2**image_dict['bitsperpixel']-1,
+                                                   __GUI_DICT['cam_plot_secondary_dict']['image_axes'], # pylint: disable=line-too-long
+                                                   __IMSHOW_SECONDARY_DICT)
 
-        # Plot histogram
-        __HIST_SECONDARY_DICT = __plot_hist(image,
-                                            __GUI_DICT['cam_plot_secondary_dict']['hist_axes'],
-                                            __HIST_SECONDARY_DICT)
+            # Plot histogram
+            __HIST_SECONDARY_DICT = __plot_hist(image_dict['data'],
+                                                2**image_dict['bitsperpixel']-1,
+                                                __GUI_DICT['cam_plot_secondary_dict']['hist_axes'],
+                                                __HIST_SECONDARY_DICT)
     except: # pylint: disable=bare-except
         if __STREAM_SECONDARY:
             # Only re-raise error if stream is enabled
@@ -657,7 +673,7 @@ def main():
 
             # Handle queue
             while not __QUEUE.empty():
-                func, args, kwargs = __QUEUE.get_nowait()
+                func, args, kwargs = __QUEUE.get()
                 func(*args, **kwargs)
         except: # pylint: disable=bare-except
             if plt.fignum_exists(__GUI_DICT['fig'].number):

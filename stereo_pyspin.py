@@ -48,8 +48,8 @@ def __destructor():
         for name, value in globals().items():
             print(name, value)
 
-    # Now clear system
-    __SYSTEM.ReleaseInstance()
+    # PySpin system goes out of scope here, so no need to explicitly
+    # release the system
 
 atexit.register(__destructor)
 
@@ -211,28 +211,25 @@ def __init_cam(cam, yaml_path=None): # pylint: disable=too-many-branches
                                        'Please fix: ' + str(cam_attr_str))
 
 def __get_image(cam):
-    """ Gets image as a numpy array from input camera """
+    """ Gets image (and other info) from input camera """
 
     # Get image object
     image = cam.GetNextImage()
 
-    # Initialize image data
-    image_data = None
+    # Initialize image dict
+    image_dict = {}
 
     # Ensure image is complete
     if not image.IsIncomplete():
-        # Get data as numpy array
-        image_data = image.GetNDArray()
+        # Get data/metadata
+        image_dict['data'] = image.GetNDArray()
+        image_dict['timestamp'] = image.GetTimeStamp()
+        image_dict['bitsperpixel'] = image.GetBitsPerPixel()
 
-    # NOTE: one pyspin example released all images, even incomplete
-    # ones, while another released only complete images... So I'm
-    # not entirely sure which is appropriate. For now I'm assuming
-    # all images need to be released.
+    # PySpin image goes out of scope here, so no need to explicitly
+    # release the image
 
-    # Release image
-    image.Release()
-
-    return image_data
+    return image_dict
 
 def __validate_cam(cam, cam_str):
     """ Checks to see if camera is valid """
