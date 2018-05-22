@@ -18,12 +18,6 @@ init:
     - TriggerMode:
         value: PySpin.TriggerMode_On
         access: RW
-    - TLStream.StreamBufferHandlingMode:
-        value: PySpin.StreamBufferHandlingMode_NewestOnly
-        access: RW
-    - AcquisitionMode:
-        value: PySpin.AcquisitionMode_Continuous
-        access: RW
     - AcquisitionFrameRateEnable:
         value: True
         access: RW

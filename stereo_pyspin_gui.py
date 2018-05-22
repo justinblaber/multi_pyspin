@@ -9,7 +9,7 @@
 
 import sys
 import queue
-import datetime
+from datetime import datetime
 from tkinter import messagebox
 
 import numpy as np
@@ -18,6 +18,8 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import TextBox
 from matplotlib.widgets import Button
 from matplotlib.widgets import Slider
+
+from PIL import Image
 
 import stereo_pyspin
 
@@ -100,6 +102,20 @@ def __start_acquisition_primary(_=None):
     if not __STREAM_PRIMARY:
         # Start streaming on camera
         print('Starting primary camera acquisition...')
+
+        # Set buffer to newest only
+        stereo_pyspin.primary_node_cmd('TLStream.StreamBufferHandlingMode',
+                                       'SetValue',
+                                       'RW',
+                                       'PySpin.StreamBufferHandlingMode_NewestOnly')
+
+        # Set acquisition mode to continuous
+        stereo_pyspin.primary_node_cmd('AcquisitionMode',
+                                       'SetValue',
+                                       'RW',
+                                       'PySpin.AcquisitionMode_Continuous')
+
+        # Start acqusition
         stereo_pyspin.start_acquisition_primary()
 
         # Enable stream
@@ -115,6 +131,20 @@ def __start_acquisition_secondary(_=None):
     if not __STREAM_SECONDARY:
         # Start streaming on camera
         print('Starting secondary camera acquisition...')
+
+        # Set buffer to newest only
+        stereo_pyspin.secondary_node_cmd('TLStream.StreamBufferHandlingMode',
+                                         'SetValue',
+                                         'RW',
+                                         'PySpin.StreamBufferHandlingMode_NewestOnly')
+
+        # Set acquisition mode to continuous
+        stereo_pyspin.secondary_node_cmd('AcquisitionMode',
+                                         'SetValue',
+                                         'RW',
+                                         'PySpin.AcquisitionMode_Continuous')
+
+        # Start acqusition
         stereo_pyspin.start_acquisition_secondary()
 
         # Enable stream
@@ -252,41 +282,93 @@ def __exposure_text(_=None):
     # Set exposure for cameras
     stereo_pyspin.set_exposure(exposure)
 
-#def __save_images(_=None):
-#    """ Care is taken here to ensure images are taken close to each other in time """
-#    global __THREAD_PRIMARY, __STREAM_PRIMARY
-#    global __THREAD_SECONDARY, __STREAM_SECONDARY
-#
-#    # Cache whether streams are running or not
-#    stream_primary = __STREAM_PRIMARY
-#    stream_secondary = __STREAM_SECONDARY
-#
-#    # Get name format, counter, and number of images
-#    name_format = __GUI_DICT['name_format_text'].text
-#    counter = int(__GUI_DICT['counter_text'].text)
-#    num_images = int(__GUI_DICT['save_images_text'].text)
-#
-#    # Stop streams
-#    __stop_acquisition_primary()
-#    __stop_acquisition_secondary()
-#
-#    # Start acquisition
-#    stereo_pyspin.start_acquisition_primary()
-#    stereo_pyspin.start_acquisition_secondary()
-#
-#    # Grab images
-#    image_primary = stereo_pyspin.get_image_primary()
-#    image_secondary = stereo_pyspin.get_image_secondary()
-#
-#    # Stop acquisition
-#    stereo_pyspin.end_acquisition_primary()
-#    stereo_pyspin.end_acquisition_secondary()
-#
-#    # Start them if they were running originally
-#    if stream_primary:
-#        __start_acquisition_primary()
-#    if stream_secondary:
-#        __start_acquisition_secondary()
+@__queue_wrapper
+@__message_box_wrapper
+def __save_images(_=None):
+    """ Care is taken here to ensure images are taken close to each other in time """
+
+    # Get name format, counter, and number of images
+    name_format = __GUI_DICT['name_format_text'].text
+    counter = int(__GUI_DICT['counter_text'].text)
+    num_images = int(__GUI_DICT['save_images_text'].text)
+
+    # Stop Acquisition to make sure both streams start at the same time
+    if __STREAM_PRIMARY:
+        __stop_acquisition_primary()
+    if __STREAM_SECONDARY:
+        __stop_acquisition_secondary()
+
+    # Grab images
+    for i in range(num_images):
+        # Set buffer to newest only
+        stereo_pyspin.primary_node_cmd('TLStream.StreamBufferHandlingMode',
+                                       'SetValue',
+                                       'RW',
+                                       'PySpin.StreamBufferHandlingMode_NewestOnly')
+
+        stereo_pyspin.secondary_node_cmd('TLStream.StreamBufferHandlingMode',
+                                         'SetValue',
+                                         'RW',
+                                         'PySpin.StreamBufferHandlingMode_NewestOnly')
+
+        # Set acquisition mode to continuous
+        stereo_pyspin.primary_node_cmd('AcquisitionMode',
+                                       'SetValue',
+                                       'RW',
+                                       'PySpin.AcquisitionMode_SingleFrame')
+
+        stereo_pyspin.secondary_node_cmd('AcquisitionMode',
+                                         'SetValue',
+                                         'RW',
+                                         'PySpin.AcquisitionMode_SingleFrame')
+
+        # Start acquisition - Must start secondary acquisition first due to trigger mode!
+        stereo_pyspin.start_acquisition_secondary()
+        stereo_pyspin.start_acquisition_primary()
+
+        # Get image dicts
+        image_primary_dict = stereo_pyspin.get_image_primary()
+        print('here primary')
+        image_secondary_dict = stereo_pyspin.get_image_secondary()
+        print('here secondary')
+
+        # Save images
+        primary_name = name_format.format(serial=stereo_pyspin.get_serial_primary(),
+                                          datetime=str(datetime.fromtimestamp(image_primary_dict['timestamp']/1e6)),
+                                          counter=counter+i,
+                                          L_R='L')
+        # Remove spaces and dots; for now, only png is supported
+        primary_name = primary_name.replace(' ', '_').replace('.', '_') + '.png'
+        print(primary_name)
+        Image.fromarray(image_primary_dict['data'].astype(np.uint32)).save(primary_name,
+                                                                           optimize=False,
+                                                                           compress_level=0,
+                                                                           bits=image_primary_dict['bitsperpixel'])
+
+        secondary_name = name_format.format(serial=stereo_pyspin.get_serial_secondary(),
+                                            datetime=str(datetime.fromtimestamp(image_secondary_dict['timestamp']/1e6)),
+                                            counter=counter+i,
+                                            L_R='R')
+        # Remove spaces and dots; for now, only png is supported
+        secondary_name = secondary_name.replace(' ', '_').replace('.', '_') + '.png'
+        print(secondary_name)
+        Image.fromarray(image_secondary_dict['data'].astype(np.uint32)).save(secondary_name,
+                                                                             optimize=False,
+                                                                             compress_level=0,
+                                                                             bits=image_secondary_dict['bitsperpixel'])
+
+        # Stop acquisition
+        stereo_pyspin.end_acquisition_primary()
+        stereo_pyspin.end_acquisition_secondary()
+
+    # Update counter
+    __GUI_DICT['counter_text'].set_val(str(counter+num_images))
+
+    # Start acquisition if streaming was enabled
+    if __STREAM_PRIMARY:
+        __start_acquisition_primary()
+    if __STREAM_SECONDARY:
+        __start_acquisition_secondary()
 
 # -------------- #
 # GUI            #
@@ -484,7 +566,7 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
     name_format_axes = fig.add_axes(name_format_pos)
     name_format_text = TextBox(name_format_axes, 'Name format')
     name_format_text.label.set_fontsize(7)
-    name_format_text.set_val('{serial}_{datetime}_{counter}_{L_R}.png')
+    name_format_text.set_val('{serial}_{datetime}_{counter}_{L_R}')
 
     # Set counter
     counter_pos = [name_format_pos[0]+name_format_pos[2]+padding+(0.5-2*padding)*0.1875+2*padding,
@@ -505,7 +587,7 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
     save_images_button = Button(save_images_button_axes, 'Save Image(s)')
     save_images_button.label.set_fontsize(7)
     # Set callback
-#    save_images_button.on_clicked(__save_images)
+    save_images_button.on_clicked(__save_images)
 
     # Set save image text
     save_images_text_pos = [save_images_button_pos[0]+save_images_button_pos[2]+padding+(0.5-2*padding)*0.1875+2*padding, # pylint: disable=line-too-long
