@@ -5,10 +5,11 @@
 # NOTE: As of May-15-2018, It appears basically nothing in matplotlib and
 # PySpin is thread safe.
 
-# pylint: disable=global-statement
+# pylint: disable=global-statement,line-too-long
 
 import sys
 import queue
+import functools
 from datetime import datetime
 from tkinter import messagebox
 
@@ -33,8 +34,7 @@ __EXPOSURE_MAX = 29999999   # units must be micro seconds
 
 # Set up GUI params
 __QUEUE = queue.Queue()
-__STREAM_PRIMARY = False
-__STREAM_SECONDARY = False
+__STREAM = False
 __IMSHOW_PRIMARY_DICT = {'imshow': None, 'imshow_size': None, 'max_val': None}
 __IMSHOW_SECONDARY_DICT = {'imshow': None, 'imshow_size': None, 'max_val': None}
 __HIST_PRIMARY_DICT = {'bar': None, 'max_val': None}
@@ -48,6 +48,7 @@ __GUI_DICT = None
 def __queue_wrapper(func):
     """ wraps function such that it gets inserted into the queue when called """
 
+    @functools.wraps(func)
     def __wrapped_func(*args, **kwargs):
         """ wrapped function """
 
@@ -57,6 +58,7 @@ def __queue_wrapper(func):
 def __message_box_wrapper(func):
     """ wraps function in try/except and pops up message box with exception """
 
+    @functools.wraps(func)
     def __wrapped_func(*args, **kwargs):
         """ wrapped function """
 
@@ -94,14 +96,13 @@ def __find_and_init_secondary(_=None):
 
 @__queue_wrapper
 @__message_box_wrapper
-def __start_acquisition_primary(_=None):
-    """ Starts acquisition of primary camera """
-    global __STREAM_PRIMARY
+def __start_stream(_=None):
+    """ Starts stream of cameras """
+    global __STREAM
 
-    # Make sure it isn't already streaming
-    if not __STREAM_PRIMARY:
-        # Start streaming on camera
-        print('Starting primary camera acquisition...')
+    # Make sure they aren't already streaming
+    if not __STREAM:
+        print('Starting stream...')
 
         # Set buffer to newest only
         stereo_pyspin.primary_node_cmd('TLStream.StreamBufferHandlingMode',
@@ -109,76 +110,47 @@ def __start_acquisition_primary(_=None):
                                        'RW',
                                        'PySpin.StreamBufferHandlingMode_NewestOnly')
 
-        # Set acquisition mode to continuous
-        stereo_pyspin.primary_node_cmd('AcquisitionMode',
-                                       'SetValue',
-                                       'RW',
-                                       'PySpin.AcquisitionMode_Continuous')
-
-        # Start acqusition
-        stereo_pyspin.start_acquisition_primary()
-
-        # Enable stream
-        __STREAM_PRIMARY = True
-
-@__queue_wrapper
-@__message_box_wrapper
-def __start_acquisition_secondary(_=None):
-    """ Starts acquisition of secondary camera """
-    global __STREAM_SECONDARY
-
-    # Make sure it isn't already streaming
-    if not __STREAM_SECONDARY:
-        # Start streaming on camera
-        print('Starting secondary camera acquisition...')
-
-        # Set buffer to newest only
         stereo_pyspin.secondary_node_cmd('TLStream.StreamBufferHandlingMode',
                                          'SetValue',
                                          'RW',
                                          'PySpin.StreamBufferHandlingMode_NewestOnly')
 
         # Set acquisition mode to continuous
+        stereo_pyspin.primary_node_cmd('AcquisitionMode',
+                                       'SetValue',
+                                       'RW',
+                                       'PySpin.AcquisitionMode_Continuous')
+
         stereo_pyspin.secondary_node_cmd('AcquisitionMode',
                                          'SetValue',
                                          'RW',
                                          'PySpin.AcquisitionMode_Continuous')
 
-        # Start acqusition
+        # Start acquisition - Must start secondary acquisition first in case there
+        # is a hardware trigger!
         stereo_pyspin.start_acquisition_secondary()
+        stereo_pyspin.start_acquisition_primary()
 
         # Enable stream
-        __STREAM_SECONDARY = True
+        __STREAM = True
 
 @__queue_wrapper
 @__message_box_wrapper
-def __stop_acquisition_primary(_=None):
-    """ Stops acquisition of primary camera """
-    global __STREAM_PRIMARY
+def __stop_stream(_=None):
+    """ Stops stream of cameras """
+    global __STREAM
 
-    # Make sure we're actually streaming
-    if __STREAM_PRIMARY:
-        # Stop streaming on camera
-        print('Stopping primary camera acquisition...')
+    # Make sure they're streaming
+    if __STREAM:
+        print('Stopping stream...')
+
+        # Stop acquisition - Must stop primary acquisition first in case there
+        # is a hardware trigger!
         stereo_pyspin.end_acquisition_primary()
-
-        # End stream
-        __STREAM_PRIMARY = False
-
-@__queue_wrapper
-@__message_box_wrapper
-def __stop_acquisition_secondary(_=None):
-    """ Stops acquisition of secondary camera """
-    global __STREAM_SECONDARY
-
-    # Make sure we're actually streaming
-    if __STREAM_SECONDARY:
-        # Stop streaming on camera
-        print('Stopping secondary camera acquisition...')
         stereo_pyspin.end_acquisition_secondary()
 
         # End stream
-        __STREAM_SECONDARY = False
+        __STREAM = False
 
 @__queue_wrapper
 @__message_box_wrapper
@@ -287,157 +259,56 @@ def __exposure_text(_=None):
 def __save_images(_=None):
     """ Care is taken here to ensure images are taken close to each other in time """
 
+    if not __STREAM:
+        raise RuntimeError('Stream has not been started yet! Please start it first.')
+
     # Get name format, counter, and number of images
     name_format = __GUI_DICT['name_format_text'].text
     counter = int(__GUI_DICT['counter_text'].text)
     num_images = int(__GUI_DICT['save_images_text'].text)
 
-    # Stop Acquisition to make sure both streams start at the same time
-    if __STREAM_PRIMARY:
-        __stop_acquisition_primary()
-    if __STREAM_SECONDARY:
-        __stop_acquisition_secondary()
-
     # Grab images
     for i in range(num_images):
-        # Set buffer to newest only
-        stereo_pyspin.primary_node_cmd('TLStream.StreamBufferHandlingMode',
-                                       'SetValue',
-                                       'RW',
-                                       'PySpin.StreamBufferHandlingMode_NewestOnly')
-
-        stereo_pyspin.secondary_node_cmd('TLStream.StreamBufferHandlingMode',
-                                         'SetValue',
-                                         'RW',
-                                         'PySpin.StreamBufferHandlingMode_NewestOnly')
-
-        # Set acquisition mode to continuous
-        stereo_pyspin.primary_node_cmd('AcquisitionMode',
-                                       'SetValue',
-                                       'RW',
-                                       'PySpin.AcquisitionMode_SingleFrame')
-
-        stereo_pyspin.secondary_node_cmd('AcquisitionMode',
-                                         'SetValue',
-                                         'RW',
-                                         'PySpin.AcquisitionMode_SingleFrame')
-
-        # Start acquisition - Must start secondary acquisition first due to trigger mode!
-        stereo_pyspin.start_acquisition_secondary()
-        stereo_pyspin.start_acquisition_primary()
-
-        # Get image dicts
+        # Get image dicts - must acquire primary image first in case there is a hardware trigger!
         image_primary_dict = stereo_pyspin.get_image_primary()
-        print('here primary')
         image_secondary_dict = stereo_pyspin.get_image_secondary()
-        print('here secondary')
 
-        # Save images
-        primary_name = name_format.format(serial=stereo_pyspin.get_serial_primary(),
-                                          datetime=str(datetime.fromtimestamp(image_primary_dict['timestamp']/1e6)),
-                                          counter=counter+i,
-                                          L_R='L')
-        # Remove spaces and dots; for now, only png is supported
-        primary_name = primary_name.replace(' ', '_').replace('.', '_') + '.png'
-        print(primary_name)
-        Image.fromarray(image_primary_dict['data'].astype(np.uint32)).save(primary_name,
-                                                                           optimize=False,
-                                                                           compress_level=0,
-                                                                           bits=image_primary_dict['bitsperpixel'])
+        # Make sure images are complete
+        if 'data' in image_primary_dict and 'data' in image_secondary_dict:
+            # Save primary image
+            primary_name = name_format.format(serial=stereo_pyspin.get_serial_primary(),
+                                              datetime=str(datetime.fromtimestamp(image_primary_dict['timestamp']/1e6)),
+                                              counter=counter+i,
+                                              L_R='L')
 
-        secondary_name = name_format.format(serial=stereo_pyspin.get_serial_secondary(),
-                                            datetime=str(datetime.fromtimestamp(image_secondary_dict['timestamp']/1e6)),
-                                            counter=counter+i,
-                                            L_R='R')
-        # Remove spaces and dots; for now, only png is supported
-        secondary_name = secondary_name.replace(' ', '_').replace('.', '_') + '.png'
-        print(secondary_name)
-        Image.fromarray(image_secondary_dict['data'].astype(np.uint32)).save(secondary_name,
-                                                                             optimize=False,
-                                                                             compress_level=0,
-                                                                             bits=image_secondary_dict['bitsperpixel'])
+            # Remove spaces and dots; for now, only png is supported
+            primary_name = primary_name.replace(' ', '_').replace('.', '_') + '.png'
+            print(primary_name)
+            Image.fromarray(image_primary_dict['data'].astype(np.uint32)).save(primary_name,
+                                                                               optimize=False,
+                                                                               compress_level=0,
+                                                                               bits=image_primary_dict['bitsperpixel'])
 
-        # Stop acquisition
-        stereo_pyspin.end_acquisition_primary()
-        stereo_pyspin.end_acquisition_secondary()
+            # Save secondary image
+            secondary_name = name_format.format(serial=stereo_pyspin.get_serial_secondary(),
+                                                datetime=str(datetime.fromtimestamp(image_secondary_dict['timestamp']/1e6)),
+                                                counter=counter+i,
+                                                L_R='R')
+
+            # Remove spaces and dots; for now, only png is supported
+            secondary_name = secondary_name.replace(' ', '_').replace('.', '_') + '.png'
+            print(secondary_name)
+            Image.fromarray(image_secondary_dict['data'].astype(np.uint32)).save(secondary_name,
+                                                                                 optimize=False,
+                                                                                 compress_level=0,
+                                                                                 bits=image_secondary_dict['bitsperpixel'])
 
     # Update counter
     __GUI_DICT['counter_text'].set_val(str(counter+num_images))
 
-    # Start acquisition if streaming was enabled
-    if __STREAM_PRIMARY:
-        __start_acquisition_primary()
-    if __STREAM_SECONDARY:
-        __start_acquisition_secondary()
-
 # -------------- #
 # GUI            #
 # -------------- #
-
-def __cam_plot(fig, pos, cam_str, options_height, padding): # pylint: disable=too-many-locals
-    """ Creates 'camera' plot; make one of these per camera """
-
-    # Set position params
-    num_options = 2
-    residual_height = pos[3]-(3+num_options)*padding-num_options*options_height
-    image_height = residual_height*0.85
-    image_width = pos[2]-2*padding
-    hist_height = residual_height-image_height
-
-    # Set axes
-    image_pos = [pos[0]+padding, pos[1]+pos[3]-image_height-padding, image_width, image_height]
-    image_axes = fig.add_axes(image_pos)
-    image_axes.set_xticklabels([])
-    image_axes.set_yticklabels([])
-    image_axes.set_xticks([])
-    image_axes.set_yticks([])
-
-    hist_pos = [image_pos[0], image_pos[1]-hist_height-padding, image_width, hist_height]
-    hist_axes = fig.add_axes(hist_pos)
-    hist_axes.set_xticklabels([])
-    hist_axes.set_yticklabels([])
-    hist_axes.set_xticks([])
-    hist_axes.set_yticks([])
-
-    find_and_init_button_pos = [image_pos[0],
-                                hist_pos[1]-options_height-padding,
-                                (image_width-padding)*0.5,
-                                options_height]
-    find_and_init_button_axes = fig.add_axes(find_and_init_button_pos)
-
-    find_and_init_text_pos = [find_and_init_button_pos[0]+find_and_init_button_pos[2]+padding,
-                              find_and_init_button_pos[1],
-                              (image_width-padding)*0.5,
-                              options_height]
-    find_and_init_text_axes = fig.add_axes(find_and_init_text_pos)
-
-    start_acquisition_pos = [find_and_init_button_pos[0],
-                             find_and_init_button_pos[1]-options_height-padding,
-                             (image_width-padding)*0.5,
-                             options_height]
-    start_acquisition_axes = fig.add_axes(start_acquisition_pos)
-
-    stop_acquisition_pos = [start_acquisition_pos[0]+start_acquisition_pos[2]+padding,
-                            start_acquisition_pos[1],
-                            (image_width-padding)*0.5,
-                            options_height]
-    stop_acquisition_axes = fig.add_axes(stop_acquisition_pos)
-
-    # Set widgets
-    find_and_init_button = Button(find_and_init_button_axes, 'Find and Init ' + cam_str)
-    find_and_init_button.label.set_fontsize(7)
-    find_and_init_text = TextBox(find_and_init_text_axes, '')
-    start_acquisition_button = Button(start_acquisition_axes, 'Start Acquisition')
-    start_acquisition_button.label.set_fontsize(7)
-    stop_acquisition_button = Button(stop_acquisition_axes, 'Stop Acquisition')
-    stop_acquisition_button.label.set_fontsize(8)
-
-    return {'image_axes': image_axes,
-            'hist_axes': hist_axes,
-            'find_and_init_button': find_and_init_button,
-            'find_and_init_text': find_and_init_text,
-            'start_acquisition_button': start_acquisition_button,
-            'stop_acquisition_button': stop_acquisition_button}
 
 def __slider_with_text(fig, pos, slider_str, val_min, val_max, val_default, padding): # pylint: disable=too-many-arguments
     """ Creates a slider with text box given a position """
@@ -471,6 +342,53 @@ def __slider_with_text(fig, pos, slider_str, val_min, val_max, val_default, padd
 
     return (slider, text)
 
+def __cam_plot(fig, pos, cam_str, options_height, padding): # pylint: disable=too-many-locals
+    """ Creates 'camera' plot; make one of these per camera """
+
+    # Set position params
+    num_options = 1
+    residual_height = pos[3]-(3+num_options)*padding-num_options*options_height
+    image_height = residual_height*0.85
+    image_width = pos[2]-2*padding
+    hist_height = residual_height-image_height
+
+    # Set axes
+    image_pos = [pos[0]+padding, pos[1]+pos[3]-image_height-padding, image_width, image_height]
+    image_axes = fig.add_axes(image_pos)
+    image_axes.set_xticklabels([])
+    image_axes.set_yticklabels([])
+    image_axes.set_xticks([])
+    image_axes.set_yticks([])
+
+    hist_pos = [image_pos[0], image_pos[1]-hist_height-padding, image_width, hist_height]
+    hist_axes = fig.add_axes(hist_pos)
+    hist_axes.set_xticklabels([])
+    hist_axes.set_yticklabels([])
+    hist_axes.set_xticks([])
+    hist_axes.set_yticks([])
+
+    find_and_init_button_pos = [image_pos[0],
+                                hist_pos[1]-options_height-padding,
+                                (image_width-padding)*0.5,
+                                options_height]
+    find_and_init_button_axes = fig.add_axes(find_and_init_button_pos)
+
+    find_and_init_text_pos = [find_and_init_button_pos[0]+find_and_init_button_pos[2]+padding,
+                              find_and_init_button_pos[1],
+                              (image_width-padding)*0.5,
+                              options_height]
+    find_and_init_text_axes = fig.add_axes(find_and_init_text_pos)
+
+    # Set widgets
+    find_and_init_button = Button(find_and_init_button_axes, 'Find and Init ' + cam_str)
+    find_and_init_button.label.set_fontsize(7)
+    find_and_init_text = TextBox(find_and_init_text_axes, '')
+
+    return {'image_axes': image_axes,
+            'hist_axes': hist_axes,
+            'find_and_init_button': find_and_init_button,
+            'find_and_init_text': find_and_init_text}
+
 def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
     """ Main function for GUI for setting up stereo cameras with PySpin library """
 
@@ -499,8 +417,6 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
     cam_plot_primary_dict['find_and_init_text'].set_val('primary.yaml')
     # Set callbacks
     cam_plot_primary_dict['find_and_init_button'].on_clicked(__find_and_init_primary)
-    cam_plot_primary_dict['start_acquisition_button'].on_clicked(__start_acquisition_primary)
-    cam_plot_primary_dict['stop_acquisition_button'].on_clicked(__stop_acquisition_primary)
 
     # Secondary camera plot
     cam_secondary_pos = [cam_primary_pos[0]+cam_primary_pos[2],
@@ -516,11 +432,31 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
     cam_plot_secondary_dict['find_and_init_text'].set_val('secondary.yaml')
     # Set callbacks
     cam_plot_secondary_dict['find_and_init_button'].on_clicked(__find_and_init_secondary)
-    cam_plot_secondary_dict['start_acquisition_button'].on_clicked(__start_acquisition_secondary)
-    cam_plot_secondary_dict['stop_acquisition_button'].on_clicked(__stop_acquisition_secondary)
+
+    # Start stream
+    start_stream_button_pos = [padding,
+                               cam_primary_pos[1]-options_height,
+                               0.5-2*padding,
+                               options_height]
+    start_stream_button_axes = fig.add_axes(start_stream_button_pos)
+    start_stream_button = Button(start_stream_button_axes, 'Start Stream')
+    start_stream_button.label.set_fontsize(7)
+    # Set callback
+    start_stream_button.on_clicked(__start_stream)
+
+    # Stop stream
+    stop_stream_button_pos = [start_stream_button_pos[0]+start_stream_button_pos[2]+2*padding,
+                              cam_primary_pos[1]-options_height,
+                              0.5-2*padding,
+                              options_height]
+    stop_stream_button_axes = fig.add_axes(stop_stream_button_pos)
+    stop_stream_button = Button(stop_stream_button_axes, 'Stop Stream')
+    stop_stream_button.label.set_fontsize(7)
+    # Set callback
+    stop_stream_button.on_clicked(__stop_stream)
 
     # FPS
-    fps_pos = [0, cam_primary_pos[1]-options_height, 1, options_height]
+    fps_pos = [0, start_stream_button_pos[1]-options_height-padding, 1, options_height]
     (fps_slider, fps_text) = __slider_with_text(fig,
                                                 fps_pos,
                                                 'FPS',
@@ -590,7 +526,7 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
     save_images_button.on_clicked(__save_images)
 
     # Set save image text
-    save_images_text_pos = [save_images_button_pos[0]+save_images_button_pos[2]+padding+(0.5-2*padding)*0.1875+2*padding, # pylint: disable=line-too-long
+    save_images_text_pos = [save_images_button_pos[0]+save_images_button_pos[2]+padding+(0.5-2*padding)*0.1875+2*padding,
                             name_format_pos[1]-options_height-padding,
                             (0.5-2*padding)*0.8125-padding,
                             options_height]
@@ -599,18 +535,11 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
     save_images_text.label.set_fontsize(7)
     save_images_text.set_val(1)
 
-    # Set save config button
-    save_config_button_pos = [padding,
-                              save_images_button_pos[1]-options_height-padding,
-                              1-2*padding,
-                              options_height]
-    save_config_button_axes = fig.add_axes(save_config_button_pos)
-    save_config_button = Button(save_config_button_axes, 'Save Config')
-    save_config_button.label.set_fontsize(7)
-
     return {'fig': fig,
             'cam_plot_primary_dict': cam_plot_primary_dict,
             'cam_plot_secondary_dict': cam_plot_secondary_dict,
+            'start_stream_button': start_stream_button,
+            'stop_stream_button': stop_stream_button,
             'fps_slider': fps_slider,
             'fps_text': fps_text,
             'gain_slider': gain_slider,
@@ -620,8 +549,7 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
             'name_format_text': name_format_text,
             'counter_text': counter_text,
             'save_images_button': save_images_button,
-            'save_images_text': save_images_text,
-            'save_config_button': save_config_button}
+            'save_images_text': save_images_text}
 
 # -------------- #
 # Set up streams #
@@ -671,57 +599,48 @@ def __plot_hist(image, max_val, hist_axes, hist_dict):
 
     return hist_dict
 
-@__queue_wrapper
-@__message_box_wrapper
-def __stream_image_primary():
-    """ stream update of primary image """
-    global __IMSHOW_PRIMARY_DICT, __HIST_PRIMARY_DICT
+def __plot_image_and_hist(image, max_val, image_axes, imshow_dict, hist_axes, hist_dict): # pylint: disable=too-many-arguments
+    """ plots image and histogram """
 
-    try:
-        # Get image dict
-        image_dict = stereo_pyspin.get_image_primary()
+    # Plot image
+    imshow_dict = __plot_image(image, max_val, image_axes, imshow_dict)
 
-        if 'data' in image_dict:
-            # Plot image
-            __IMSHOW_PRIMARY_DICT = __plot_image(image_dict['data'],
-                                                 2**image_dict['bitsperpixel']-1,
-                                                 __GUI_DICT['cam_plot_primary_dict']['image_axes'],
-                                                 __IMSHOW_PRIMARY_DICT)
+    # Plot histogram
+    hist_dict = __plot_hist(image, max_val, hist_axes, hist_dict)
 
-            # Plot histogram
-            __HIST_PRIMARY_DICT = __plot_hist(image_dict['data'],
-                                              2**image_dict['bitsperpixel']-1,
-                                              __GUI_DICT['cam_plot_primary_dict']['hist_axes'],
-                                              __HIST_PRIMARY_DICT)
-    except: # pylint: disable=bare-except
-        if __STREAM_PRIMARY:
-            # Only re-raise error if stream is enabled
-            raise
+    return (imshow_dict, hist_dict)
 
 @__queue_wrapper
 @__message_box_wrapper
-def __stream_image_secondary():
-    """ stream update of secondary image """
-    global __IMSHOW_SECONDARY_DICT, __HIST_SECONDARY_DICT
+def __stream_images():
+    """ stream update of images """
+    global __IMSHOW_PRIMARY_DICT, __IMSHOW_SECONDARY_DICT
+    global __HIST_PRIMARY_DICT, __HIST_SECONDARY_DICT
 
     try:
-        # Get image dict
-        image_dict = stereo_pyspin.get_image_secondary()
+        # Get image dicts - Must acquire primary image first in case there is a hardware trigger!
+        image_primary_dict = stereo_pyspin.get_image_primary()
+        image_secondary_dict = stereo_pyspin.get_image_secondary()
 
-        if 'data' in image_dict:
-            # Plot image
-            __IMSHOW_SECONDARY_DICT = __plot_image(image_dict['data'],
-                                                   2**image_dict['bitsperpixel']-1,
-                                                   __GUI_DICT['cam_plot_secondary_dict']['image_axes'], # pylint: disable=line-too-long
-                                                   __IMSHOW_SECONDARY_DICT)
+        # Make sure images are complete
+        if 'data' in image_primary_dict and 'data' in image_secondary_dict:
+            # Plot primary image and histogram
+            __IMSHOW_PRIMARY_DICT, __HIST_PRIMARY_DICT = __plot_image_and_hist(image_primary_dict['data'],
+                                                                               2**image_primary_dict['bitsperpixel']-1,
+                                                                               __GUI_DICT['cam_plot_primary_dict']['image_axes'],
+                                                                               __IMSHOW_PRIMARY_DICT,
+                                                                               __GUI_DICT['cam_plot_primary_dict']['hist_axes'],
+                                                                               __HIST_PRIMARY_DICT)
 
-            # Plot histogram
-            __HIST_SECONDARY_DICT = __plot_hist(image_dict['data'],
-                                                2**image_dict['bitsperpixel']-1,
-                                                __GUI_DICT['cam_plot_secondary_dict']['hist_axes'],
-                                                __HIST_SECONDARY_DICT)
+            # Plot secondary image and histogram
+            __IMSHOW_SECONDARY_DICT, __HIST_SECONDARY_DICT = __plot_image_and_hist(image_secondary_dict['data'],
+                                                                                   2**image_secondary_dict['bitsperpixel']-1,
+                                                                                   __GUI_DICT['cam_plot_secondary_dict']['image_axes'],
+                                                                                   __IMSHOW_SECONDARY_DICT,
+                                                                                   __GUI_DICT['cam_plot_secondary_dict']['hist_axes'],
+                                                                                   __HIST_SECONDARY_DICT)
     except: # pylint: disable=bare-except
-        if __STREAM_SECONDARY:
+        if __STREAM:
             # Only re-raise error if stream is enabled
             raise
 
@@ -732,7 +651,7 @@ def __stream_image_secondary():
 def main():
     """ Main program """
     global __QUEUE
-    global __STREAM_PRIMARY, __STREAM_SECONDARY
+    global __STREAM
     global __IMSHOW_PRIMARY_DICT, __IMSHOW_SECONDARY_DICT
     global __HIST_PRIMARY_DICT, __HIST_SECONDARY_DICT
     global __GUI_DICT
@@ -743,20 +662,17 @@ def main():
     # Update plot while figure exists
     while plt.fignum_exists(__GUI_DICT['fig'].number): # pylint: disable=unsubscriptable-object
         try:
-            # Update plot
-            plt.pause(sys.float_info.min)
-
             # Handle streams
-            if __STREAM_PRIMARY:
-                __stream_image_primary()
-
-            if __STREAM_SECONDARY:
-                __stream_image_secondary()
+            if __STREAM:
+                __stream_images()
 
             # Handle queue
             while not __QUEUE.empty():
                 func, args, kwargs = __QUEUE.get()
                 func(*args, **kwargs)
+
+            # Update plot
+            plt.pause(sys.float_info.min)
         except: # pylint: disable=bare-except
             if plt.fignum_exists(__GUI_DICT['fig'].number):
                 # Only re-raise error if figure is still open
@@ -764,8 +680,7 @@ def main():
 
     # Clean up
     __QUEUE = queue.Queue()
-    __STREAM_PRIMARY = False
-    __STREAM_SECONDARY = False
+    __STREAM = False
     __IMSHOW_PRIMARY_DICT = {'imshow': None, 'imshow_size': None}
     __IMSHOW_SECONDARY_DICT = {'imshow': None, 'imshow_size': None}
     __HIST_PRIMARY_DICT = {'bar': None}

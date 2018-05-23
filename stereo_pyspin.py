@@ -411,10 +411,8 @@ def secondary_node_cmd(cam_attr_str, cam_method_str, pyspin_mode_str=None, cam_m
 def get_frame_rate():
     """ Gets frame rate """
 
-    frame_rate_primary = primary_node_cmd('AcquisitionFrameRate',
-                                          'GetValue')
-    frame_rate_secondary = secondary_node_cmd('AcquisitionFrameRate',
-                                              'GetValue')
+    frame_rate_primary = primary_node_cmd('AcquisitionameRate', 'GetValue')
+    frame_rate_secondary = secondary_node_cmd('AcquisitionFrameRate', 'GetValue')
 
     if frame_rate_primary != frame_rate_secondary:
         warn('Primary and secondary frame rate are different: ' +
@@ -428,10 +426,8 @@ def get_frame_rate():
 def get_gain():
     """ Gets gain """
 
-    gain_primary = primary_node_cmd('Gain',
-                                    'GetValue')
-    gain_secondary = secondary_node_cmd('Gain',
-                                        'GetValue')
+    gain_primary = primary_node_cmd('Gain', 'GetValue')
+    gain_secondary = secondary_node_cmd('Gain', 'GetValue')
 
     if gain_primary != gain_secondary:
         warn('Primary and secondary gain are different: ' +
@@ -445,10 +441,8 @@ def get_gain():
 def get_exposure():
     """ Gets exposure """
 
-    exposure_primary = primary_node_cmd('ExposureTime',
-                                        'GetValue')
-    exposure_secondary = secondary_node_cmd('ExposureTime',
-                                            'GetValue')
+    exposure_primary = primary_node_cmd('ExposureTime', 'GetValue')
+    exposure_secondary = secondary_node_cmd('ExposureTime', 'GetValue')
 
     if exposure_primary != exposure_secondary:
         warn('Primary and secondary exposure are different: ' +
