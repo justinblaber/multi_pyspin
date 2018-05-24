@@ -25,7 +25,7 @@ init:
         value: PySpin.ExposureAuto_Off
         access: RW
     - ExposureTime:
-        value: 10000
+        value: 20000
         access: RW
     - GainSelector:
         value: PySpin.GainSelector_All
