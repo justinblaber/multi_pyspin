@@ -42,7 +42,7 @@ __HIST_SECONDARY_DICT = {'bar': None, 'max_val': None}
 __GUI_DICT = None
 
 # -------------- #
-# Callbacks      #
+# Wrappers       #
 # -------------- #
 
 def __queue_wrapper(func):
@@ -67,6 +67,10 @@ def __message_box_wrapper(func):
         except Exception as e: # pylint: disable=broad-except,invalid-name
             messagebox.showerror("Error", str(e))
     return __wrapped_func
+
+# -------------- #
+# Callbacks      #
+# -------------- #
 
 @__queue_wrapper
 @__message_box_wrapper
@@ -144,8 +148,7 @@ def __stop_stream(_=None):
     if __STREAM:
         print('Stopping stream...')
 
-        # Stop acquisition - Must stop primary acquisition first in case there
-        # is a hardware trigger!
+        # Stop acquisition - Order shouldn't matter here
         stereo_pyspin.end_acquisition_primary()
         stereo_pyspin.end_acquisition_secondary()
 
@@ -204,7 +207,7 @@ def __gain_slider(_=None):
 @__queue_wrapper
 @__message_box_wrapper
 def __gain_text(_=None):
-    """ gain text callback """
+    """ Gain text callback """
 
     gain_text = __GUI_DICT['gain_text'].text
     if not gain_text:
@@ -238,7 +241,7 @@ def __exposure_slider(_=None):
 @__queue_wrapper
 @__message_box_wrapper
 def __exposure_text(_=None):
-    """ exposure text callback """
+    """ Exposure text callback """
 
     exposure_text = __GUI_DICT['exposure_text'].text
     if not exposure_text:
@@ -283,7 +286,9 @@ def __save_images(_=None):
 
             # Remove spaces and dots; for now, only png is supported
             primary_name = primary_name.replace(' ', '_').replace('.', '_') + '.png'
-            print(primary_name)
+
+            # Save primary image
+            print('Acquired: ' + primary_name)
             Image.fromarray(image_primary_dict['data'].astype(np.uint32)).save(primary_name,
                                                                                optimize=False,
                                                                                compress_level=0,
@@ -297,7 +302,9 @@ def __save_images(_=None):
 
             # Remove spaces and dots; for now, only png is supported
             secondary_name = secondary_name.replace(' ', '_').replace('.', '_') + '.png'
-            print(secondary_name)
+
+            # Save secondary image
+            print('Acquired: ' + secondary_name)
             Image.fromarray(image_secondary_dict['data'].astype(np.uint32)).save(secondary_name,
                                                                                  optimize=False,
                                                                                  compress_level=0,
@@ -552,7 +559,7 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
             'save_images_text': save_images_text}
 
 # -------------- #
-# Set up streams #
+# Set up stream  #
 # -------------- #
 
 def __plot_image(image, max_val, image_axes, imshow_dict):
@@ -641,7 +648,7 @@ def __stream_images():
                                                                                    __HIST_SECONDARY_DICT)
     except: # pylint: disable=bare-except
         if __STREAM:
-            # Only re-raise error if stream is enabled
+            # Only re-raise error if stream is still enabled
             raise
 
 # -------------- #

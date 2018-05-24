@@ -19,8 +19,7 @@ import PySpin
 # to cameras before exiting.
 __SYSTEM = PySpin.System.GetInstance()
 
-# Only state maintained is basically just primary and secondary camera objects.
-# Any other state should be retrieved directly from the camera objects.
+# Any camera-related state should be retrieved directly from the camera objects.
 __CAM_PRIMARY = None
 __CAM_SECONDARY = None
 
@@ -35,7 +34,7 @@ def __destructor():
 
     # NOTE: it might actually be a nice feature to allow cameras to remain
     # initialized and streaming after exiting stereo_pyspin... but I think
-    # the destructor for System object prevents this. Maybe come back to
+    # the destructor of System object prevents this. Maybe come back to
     # this later.
 
     # Clean up primary and secondary cameras
@@ -249,7 +248,7 @@ def __validate_cam_init(cam, cam_str):
         raise RuntimeError(cam_str + ' cam is not initialized. Please init() it.')
 
 def __validate_cam_streaming(cam, cam_str):
-    """ Checks to see if camera is valid, initialialized, and streaming """
+    """ Checks to see if camera is valid, initialized, and streaming """
 
     __validate_cam_init(cam, cam_str)
 
@@ -257,7 +256,7 @@ def __validate_cam_streaming(cam, cam_str):
         raise RuntimeError(cam_str + ' cam is not streaming. Please start_acquisition() it.')
 
 # ------------------- #
-# "private" method    #
+# "private" methods   #
 # ------------------- #
 
 def __get_cam_primary():
@@ -341,7 +340,7 @@ def __cleanup_secondary_cam():
     with suppress(Exception):
         deinit_secondary()
 
-    # Clear camera references
+    # Clear camera reference
     __CAM_SECONDARY = None
 
 # ------------------- #
@@ -411,7 +410,7 @@ def secondary_node_cmd(cam_attr_str, cam_method_str, pyspin_mode_str=None, cam_m
 def get_frame_rate():
     """ Gets frame rate """
 
-    frame_rate_primary = primary_node_cmd('AcquisitionameRate', 'GetValue')
+    frame_rate_primary = primary_node_cmd('AcquisitionFrameRate', 'GetValue')
     frame_rate_secondary = secondary_node_cmd('AcquisitionFrameRate', 'GetValue')
 
     if frame_rate_primary != frame_rate_secondary:
