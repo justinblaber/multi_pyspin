@@ -45,8 +45,8 @@ singularity pull --name stereo_pyspin.img shub://justinblaber/stereo_pyspin
 ```
 mkdir -p ~/Desktop/stereo_pyspin_test
 cd ~/Desktop/stereo_pyspin_test
-wget https://github.com/justinblaber/stereo_pyspin/blob/master/primary.yaml
-wget https://github.com/justinblaber/stereo_pyspin/blob/master/secondary.yaml
+wget https://raw.githubusercontent.com/justinblaber/stereo_pyspin/master/primary.yaml
+wget https://raw.githubusercontent.com/justinblaber/stereo_pyspin/master/secondary.yaml
 # Modify primary.yaml and secondary.yaml to set the serial numbers and do the appropriate camera initializations
 ```
 
