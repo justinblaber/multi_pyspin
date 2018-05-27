@@ -1,0 +1,5 @@
+matplotlib==2.2.2
+numpy==1.14.2
+Pillow==5.1.0
+PyYAML==3.12
+spinnaker_python-1.13.0.31-cp35-cp35m-linux_x86_64.whl
