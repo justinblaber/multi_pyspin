@@ -1,7 +1,7 @@
 # stereo_pyspin
 A simple stereo camera library using PySpin.
 
-# Installation (Spinnaker USB cameras on Linux)
+# Installation and User Guide (Spinnaker USB cameras on Linux)
 
 1) increase USB file system memory. There are two ways:
 
@@ -61,10 +61,8 @@ A simple stereo camera library using PySpin.
    wget https://raw.githubusercontent.com/justinblaber/stereo_pyspin/master/secondary.yaml
    # Modify primary.yaml and secondary.yaml to set the serial numbers and do the appropriate camera initializations
    ```
-
-# User guide 
-
-1) Run the singularity image:
+   
+7) Run the singularity image:
 
    `singularity run ~/stereo_pyspin/stereo_pyspin.img`
    
