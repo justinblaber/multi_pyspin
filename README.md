@@ -31,6 +31,8 @@ A simple stereo camera library using PySpin.
 
    `cat /sys/module/usbcore/parameters/usbfs_memory_mb`
    
+   The output should be 1000.
+   
 3) Configure udev rules to allow access to USB devices:
    ```
    cd /tmp
