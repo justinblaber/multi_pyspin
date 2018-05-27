@@ -34,6 +34,7 @@ A simple stereo camera library using PySpin.
    The output should be 1000.
    
 3) Configure udev rules to allow access to USB devices:
+   
    ```
    cd /tmp
    wget https://github.com/justinblaber/stereo_pyspin/blob/master/spinnaker-1.13.0.31-amd64-pkg.tar.gz?raw=true
@@ -45,20 +46,21 @@ A simple stereo camera library using PySpin.
 
 5) Download singularity image:
 
-```
-mkdir -p ~/stereo_pyspin
-cd ~/stereo_pyspin
-singularity pull --name stereo_pyspin.img shub://justinblaber/stereo_pyspin
-```
+   ```
+   mkdir -p ~/stereo_pyspin
+   cd ~/stereo_pyspin
+   singularity pull --name stereo_pyspin.img shub://justinblaber/stereo_pyspin
+   ```
 
 6) Set up acquisition folder and copy YAML configurations for each camera into it:
-```
-mkdir -p ~/Desktop/stereo_pyspin_test
-cd ~/Desktop/stereo_pyspin_test
-wget https://raw.githubusercontent.com/justinblaber/stereo_pyspin/master/primary.yaml
-wget https://raw.githubusercontent.com/justinblaber/stereo_pyspin/master/secondary.yaml
-# Modify primary.yaml and secondary.yaml to set the serial numbers and do the appropriate camera initializations
-```
+
+   ```
+   mkdir -p ~/Desktop/stereo_pyspin_test
+   cd ~/Desktop/stereo_pyspin_test
+   wget https://raw.githubusercontent.com/justinblaber/stereo_pyspin/master/primary.yaml
+   wget https://raw.githubusercontent.com/justinblaber/stereo_pyspin/master/secondary.yaml
+   # Modify primary.yaml and secondary.yaml to set the serial numbers and do the appropriate camera initializations
+   ```
 
 7) Run the singularity image:
 
