@@ -5,7 +5,7 @@ A simple stereo camera library using PySpin.
 
 1) increase USB file system memory. There are two ways:
 
-   Permanent way:
+   #### Permanent way:
 
    1. Open the `/etc/default/grub` file in any text editor. Find and replace:
     
@@ -21,7 +21,7 @@ A simple stereo camera library using PySpin.
 
    3. Reboot and test a USB camera.
 
-   Temporary way:
+   #### Temporary way:
 
    1. Run the following command:
 
@@ -29,9 +29,9 @@ A simple stereo camera library using PySpin.
 
 2) After doing either the permanent or temporary way, confirm that you have successfully updated the memory limit by running the following command:
 
-`cat /sys/module/usbcore/parameters/usbfs_memory_mb`
+   `cat /sys/module/usbcore/parameters/usbfs_memory_mb`
 
-3) [install singularity](https://singularity.lbl.gov/install-linux)
+3) [Install singularity](https://singularity.lbl.gov/install-linux)
 
 4) Download singularity image:
 
@@ -47,7 +47,7 @@ mkdir -p ~/Desktop/stereo_pyspin_test
 cd ~/Desktop/stereo_pyspin_test
 wget https://github.com/justinblaber/stereo_pyspin/blob/master/primary.yaml
 wget https://github.com/justinblaber/stereo_pyspin/blob/master/secondary.yaml
-# Modify primary.yaml and secondary.yaml and set the serial numbers and camera initializations
+# Modify primary.yaml and secondary.yaml to set the serial numbers and do the appropriate camera initializations
 ```
 
 6) Run the singularity image:
