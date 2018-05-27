@@ -16,7 +16,7 @@ RUN mkdir /extra && \
     apt-get -y install git && \
     git clone https://github.com/justinblaber/stereo_pyspin.git && \
     cd stereo_pyspin && \
-    tar xvfz spinnaker-1.10.0.31-amd64 && \
+    tar xvfz spinnaker-1.10.0.31-amd64.tar.gz && \
     cd spinnaker-1.10.0.31-amd64 && \
     apt-get -y install libavcodec-ffmpeg56 && \
     apt-get -y install libavformat-ffmpeg56 && \
