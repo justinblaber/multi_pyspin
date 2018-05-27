@@ -37,7 +37,7 @@ A simple stereo camera library using PySpin.
    
    ```
    cd /tmp
-   wget https://github.com/justinblaber/stereo_pyspin/blob/master/spinnaker-1.13.0.31-amd64-pkg.tar.gz?raw=true
+   wget https://github.com/justinblaber/stereo_pyspin/blob/master/spinnaker-1.10.0.31-amd64.tar.gz.tar.gz?raw=true
    tar xvfz spinnaker-1.13.0.31-amd64-pkg.tar.gz
    sudo sh spinnaker-1.13.0.31-amd64/spin-conf
    ```
