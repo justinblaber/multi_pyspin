@@ -62,11 +62,10 @@ A simple stereo camera library using PySpin.
    # Modify primary.yaml and secondary.yaml to set the serial numbers and do the appropriate camera initializations
    ```
 
-7) Run the singularity image:
+# User guide 
+
+1) Run the singularity image:
 
    `singularity run ~/stereo_pyspin/stereo_pyspin.img`
-
-
-
- 
-
+   
+   A gui should appear like so:
