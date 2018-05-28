@@ -71,7 +71,7 @@ A simple stereo camera library using PySpin.
 
    ![alt text](https://i.imgur.com/7G2QBhH.png)
    
-8) Find and initialize both primary and secondary camera, then start the stream. If successful, the gui should look like:
+8) Find and initialize both primary and secondary cameras, then start the stream. If successful, the gui should look like:
 
    ![alt text](https://i.imgur.com/hamwPeE.png)
    
