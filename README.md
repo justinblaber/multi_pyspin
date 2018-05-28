@@ -67,3 +67,16 @@ A simple stereo camera library using PySpin.
    `singularity run ~/stereo_pyspin/stereo_pyspin.img`
    
    A gui should appear like so:
+
+   ![alt text](https://i.imgur.com/7G2QBhH.png)
+   
+8) Find and initialize both primary and secondary camera, then start the stream. If successful, the gui should look like:
+
+   ![alt text](https://i.imgur.com/hamwPeE.png)
+   
+9) After the stream is started, you can save images:
+
+    ![alt text](https://i.imgur.com/6F49APZ.jpg)
+    ![alt text](https://i.imgur.com/mbcDm3l.jpg)
+
+   
