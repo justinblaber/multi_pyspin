@@ -76,7 +76,12 @@ A simple stereo camera library using PySpin.
    
 9) After the stream is started, you can save images:
 
+   16276941_2018-05-28_00:13:27_877002_1_L.png:
     ![alt text](https://i.imgur.com/6F49APZ.jpg)
+    
+   16276942_2018-05-28_00:13:27_877956_1_R.png 
     ![alt text](https://i.imgur.com/mbcDm3l.jpg)
+    
+   Its important to note that the images should be acquired very closely in time (especially if a hardware trigger is used. 
 
    
