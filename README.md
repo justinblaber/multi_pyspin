@@ -3,7 +3,7 @@ A simple stereo camera library using PySpin.
 
 # Installation and User Guide (Spinnaker USB cameras on Linux)
 
-1) increase USB file system memory. There are two ways:
+1) Increase USB file system memory. There are two ways:
 
    #### Permanent way:
 
