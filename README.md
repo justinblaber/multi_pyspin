@@ -69,19 +69,19 @@ A simple stereo camera library using PySpin.
    
    A gui should appear like so:
 
-   ![alt text](https://i.imgur.com/7G2QBhH.png)
+   ![alt text](https://i.imgur.com/OFgiTeA.png)
    
 8) Find and initialize both primary and secondary cameras, then start the stream. If successful, the gui should look like:
 
-   ![alt text](https://i.imgur.com/hamwPeE.png)
+   ![alt text](https://i.imgur.com/OEisimK.png)
    
 9) After the stream is started, you can save images:
 
-   `16276941_2018-05-28_00:13:27_877002_1_L.png`:
-    ![alt text](https://i.imgur.com/6F49APZ.jpg)
+   `16276941_2018-05-31_03:35:19_596960_1_L.png`:
+    ![alt text](https://i.imgur.com/pipd4c0.jpg)
     
-   `16276942_2018-05-28_00:13:27_877956_1_R.png`:
-    ![alt text](https://i.imgur.com/mbcDm3l.jpg)
+   `16276942_2018-05-31_03:35:19_598067_1_R.png`:
+    ![alt text](https://i.imgur.com/qDxbXXF.jpg)
     
    It's important to note that the images should be acquired very closely in time (especially if a hardware trigger is used). 
 
