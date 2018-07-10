@@ -157,71 +157,71 @@ def __stop_stream(_=None):
 
 @__queue_wrapper
 @__message_box_wrapper
-def __fps_slider(_=None):
-    """ FPS slider callback """
+def __gain_slider_primary(_=None):
+    """ primary gain slider callback """
 
-    fps = __GUI_DICT['fps_slider'].val
-
-    # Update text to match slider
-    __GUI_DICT['fps_text'].eventson = False
-    __GUI_DICT['fps_text'].set_val(fps)
-    __GUI_DICT['fps_text'].eventson = True
-
-    # Set frame rate for cameras
-    stereo_pyspin.set_frame_rate(fps)
-
-@__queue_wrapper
-@__message_box_wrapper
-def __fps_text(_=None):
-    """ FPS text callback """
-
-    fps_text = __GUI_DICT['fps_text'].text
-    if not fps_text:
-        return
-
-    fps = float(fps_text)
-
-    # Update slider to match text
-    __GUI_DICT['fps_slider'].eventson = False
-    __GUI_DICT['fps_slider'].set_val(fps)
-    __GUI_DICT['fps_slider'].eventson = True
-
-    # Set frame rate for cameras
-    stereo_pyspin.set_frame_rate(fps)
-
-@__queue_wrapper
-@__message_box_wrapper
-def __gain_slider(_=None):
-    """ Gain slider callback """
-
-    gain = __GUI_DICT['gain_slider'].val
+    gain = __GUI_DICT['gain_slider_primary'].val
 
     # Update text to match slider
-    __GUI_DICT['gain_text'].eventson = False
-    __GUI_DICT['gain_text'].set_val(gain)
-    __GUI_DICT['gain_text'].eventson = True
+    __GUI_DICT['gain_text_primary'].eventson = False
+    __GUI_DICT['gain_text_primary'].set_val(gain)
+    __GUI_DICT['gain_text_primary'].eventson = True
 
-    # Set gain for cameras
-    stereo_pyspin.set_gain(gain)
+    # Set gain for primary camera
+    stereo_pyspin.set_gain_primary(gain)
 
 @__queue_wrapper
 @__message_box_wrapper
-def __gain_text(_=None):
-    """ Gain text callback """
+def __gain_slider_secondary(_=None):
+    """ secondary gain slider callback """
 
-    gain_text = __GUI_DICT['gain_text'].text
+    gain = __GUI_DICT['gain_slider_secondary'].val
+
+    # Update text to match slider
+    __GUI_DICT['gain_text_secondary'].eventson = False
+    __GUI_DICT['gain_text_secondary'].set_val(gain)
+    __GUI_DICT['gain_text_secondary'].eventson = True
+
+    # Set gain for secondary camera
+    stereo_pyspin.set_gain_secondary(gain)
+
+@__queue_wrapper
+@__message_box_wrapper
+def __gain_text_primary(_=None):
+    """ primary gain text callback """
+
+    gain_text = __GUI_DICT['gain_text_primary'].text
     if not gain_text:
         return
 
     gain = float(gain_text)
 
     # Update slider to match text
-    __GUI_DICT['gain_slider'].eventson = False
-    __GUI_DICT['gain_slider'].set_val(gain)
-    __GUI_DICT['gain_slider'].eventson = True
+    __GUI_DICT['gain_slider_primary'].eventson = False
+    __GUI_DICT['gain_slider_primary'].set_val(gain)
+    __GUI_DICT['gain_slider_primary'].eventson = True
 
     # Set gain for cameras
-    stereo_pyspin.set_gain(gain)
+    stereo_pyspin.set_gain_primary(gain)
+
+@__queue_wrapper
+@__message_box_wrapper
+def __gain_text_secondary(_=None):
+    """ secondary gain text callback """
+
+    gain_text = __GUI_DICT['gain_text_secondary'].text
+    if not gain_text:
+        return
+
+    gain = float(gain_text)
+
+    # Update slider to match text
+    __GUI_DICT['gain_slider_secondary'].eventson = False
+    __GUI_DICT['gain_slider_secondary'].set_val(gain)
+    __GUI_DICT['gain_slider_secondary'].eventson = True
+
+    # Set gain for cameras
+    stereo_pyspin.set_gain_secondary(gain)
 
 @__queue_wrapper
 @__message_box_wrapper
@@ -259,7 +259,40 @@ def __exposure_text(_=None):
 
 @__queue_wrapper
 @__message_box_wrapper
-def __save_images(_=None):
+def __fps_slider(_=None):
+    """ FPS slider callback """
+
+    fps = __GUI_DICT['fps_slider'].val
+
+    # Update text to match slider
+    __GUI_DICT['fps_text'].eventson = False
+    __GUI_DICT['fps_text'].set_val(fps)
+    __GUI_DICT['fps_text'].eventson = True
+
+    # Set frame rate for cameras
+    stereo_pyspin.set_frame_rate(fps)
+
+@__queue_wrapper
+@__message_box_wrapper
+def __fps_text(_=None):
+    """ FPS text callback """
+
+    fps_text = __GUI_DICT['fps_text'].text
+    if not fps_text:
+        return
+
+    fps = float(fps_text)
+
+    # Update slider to match text
+    __GUI_DICT['fps_slider'].eventson = False
+    __GUI_DICT['fps_slider'].set_val(fps)
+    __GUI_DICT['fps_slider'].eventson = True
+
+    # Set frame rate for cameras
+    stereo_pyspin.set_frame_rate(fps)
+
+# Helper function; do not call this directly!
+def __save_images(save_type):
     """ Care is taken here to ensure images are taken close to each other in time """
 
     if not __STREAM:
@@ -268,7 +301,7 @@ def __save_images(_=None):
     # Get name format, counter, and number of images
     name_format = __GUI_DICT['name_format_text'].text
     counter = int(__GUI_DICT['counter_text'].text)
-    num_images = int(__GUI_DICT['save_images_text'].text)
+    num_images = int(__GUI_DICT['num_images_text'].text)
 
     # Grab images
     for i in range(num_images):
@@ -278,40 +311,63 @@ def __save_images(_=None):
 
         # Make sure images are complete
         if 'data' in image_primary_dict and 'data' in image_secondary_dict:
-            # Save primary image
-            primary_name = name_format.format(serial=stereo_pyspin.get_serial_primary(),
-                                              datetime=str(datetime.fromtimestamp(image_primary_dict['timestamp']/1e6)),
-                                              counter=counter+i,
-                                              L_R='L')
+            if save_type == 'stereo' or save_type == 'primary':
+                # Save primary image
+                primary_name = name_format.format(serial=stereo_pyspin.get_serial_primary(),
+                                                  datetime=str(datetime.fromtimestamp(image_primary_dict['timestamp']/1e6)),
+                                                  counter=counter+i,
+                                                  L_R='L')
 
-            # Remove spaces and dots; for now, only png is supported
-            primary_name = primary_name.replace(' ', '_').replace('.', '_') + '.png'
+                # Remove spaces and dots; for now, only png is supported
+                primary_name = primary_name.replace(' ', '_').replace('.', '_') + '.png'
 
-            # Save primary image
-            print('Acquired: ' + primary_name)
-            Image.fromarray(image_primary_dict['data'].astype(np.uint32)).save(primary_name,
-                                                                               optimize=False,
-                                                                               compress_level=0,
-                                                                               bits=image_primary_dict['bitsperpixel'])
+                # Save primary image
+                print('Acquired: ' + primary_name)
+                Image.fromarray(image_primary_dict['data'].astype(np.uint32)).save(primary_name,
+                                                                                   optimize=False,
+                                                                                   compress_level=0,
+                                                                                   bits=image_primary_dict['bitsperpixel'])
 
-            # Save secondary image
-            secondary_name = name_format.format(serial=stereo_pyspin.get_serial_secondary(),
-                                                datetime=str(datetime.fromtimestamp(image_secondary_dict['timestamp']/1e6)),
-                                                counter=counter+i,
-                                                L_R='R')
+            if save_type == 'stereo' or save_type == 'secondary':
+                # Save secondary image
+                secondary_name = name_format.format(serial=stereo_pyspin.get_serial_secondary(),
+                                                    datetime=str(datetime.fromtimestamp(image_secondary_dict['timestamp']/1e6)),
+                                                    counter=counter+i,
+                                                    L_R='R')
 
-            # Remove spaces and dots; for now, only png is supported
-            secondary_name = secondary_name.replace(' ', '_').replace('.', '_') + '.png'
+                # Remove spaces and dots; for now, only png is supported
+                secondary_name = secondary_name.replace(' ', '_').replace('.', '_') + '.png'
 
-            # Save secondary image
-            print('Acquired: ' + secondary_name)
-            Image.fromarray(image_secondary_dict['data'].astype(np.uint32)).save(secondary_name,
-                                                                                 optimize=False,
-                                                                                 compress_level=0,
-                                                                                 bits=image_secondary_dict['bitsperpixel'])
+                # Save secondary image
+                print('Acquired: ' + secondary_name)
+                Image.fromarray(image_secondary_dict['data'].astype(np.uint32)).save(secondary_name,
+                                                                                     optimize=False,
+                                                                                     compress_level=0,
+                                                                                     bits=image_secondary_dict['bitsperpixel'])
 
     # Update counter
     __GUI_DICT['counter_text'].set_val(str(counter+num_images))
+
+@__queue_wrapper
+@__message_box_wrapper
+def __save_primary_images(_=None):
+    """ Save primary image(s) """
+
+    __save_images('primary')
+
+@__queue_wrapper
+@__message_box_wrapper
+def __save_secondary_images(_=None):
+    """ Save secondary image(s) """
+
+    __save_images('secondary')
+
+@__queue_wrapper
+@__message_box_wrapper
+def __save_stereo_images(_=None):
+    """ Save stereo image(s) """
+
+    __save_images('stereo')
 
 # -------------- #
 # GUI            #
@@ -322,7 +378,7 @@ def __slider_with_text(fig, pos, slider_str, val_min, val_max, val_default, padd
 
     # Set position params
     slider_padding = 0.1
-    slider_text_width = 0.2
+    slider_text_width = (0.5-3*padding)/3
 
     # Slider
     slider_pos = [pos[0]+slider_padding+padding,
@@ -462,34 +518,34 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
     # Set callback
     stop_stream_button.on_clicked(__stop_stream)
 
-    # FPS
-    fps_pos = [0, start_stream_button_pos[1]-options_height-padding, 1, options_height]
-    (fps_slider, fps_text) = __slider_with_text(fig,
-                                                fps_pos,
-                                                'FPS',
-                                                __FPS_MIN,
-                                                __FPS_MAX,
-                                                __FPS_MIN,
-                                                padding)
+    # Primary gain
+    gain_primary_pos = [0, start_stream_button_pos[1]-options_height-padding, 0.5, options_height]
+    (gain_slider_primary, gain_text_primary) = __slider_with_text(fig,
+                                                                  gain_primary_pos,
+                                                                  'Gain',
+                                                                  __GAIN_MIN,
+                                                                  __GAIN_MAX,
+                                                                  __GAIN_MIN,
+                                                                  padding)
     # Set callbacks
-    fps_slider.on_changed(__fps_slider)
-    fps_text.on_submit(__fps_text)
+    gain_slider_primary.on_changed(__gain_slider_primary)
+    gain_text_primary.on_submit(__gain_text_primary)
 
-    # Gain
-    gain_pos = [0, fps_pos[1]-options_height-padding, 1, options_height]
-    (gain_slider, gain_text) = __slider_with_text(fig,
-                                                  gain_pos,
-                                                  'Gain',
-                                                  __GAIN_MIN,
-                                                  __GAIN_MAX,
-                                                  __GAIN_MIN,
-                                                  padding)
+    # Secondary gain
+    gain_secondary_pos = [0.5, start_stream_button_pos[1]-options_height-padding, 0.5, options_height]
+    (gain_slider_secondary, gain_text_secondary) = __slider_with_text(fig,
+                                                                      gain_secondary_pos,
+                                                                      'Gain',
+                                                                      __GAIN_MIN,
+                                                                      __GAIN_MAX,
+                                                                      __GAIN_MIN,
+                                                                      padding)
     # Set callbacks
-    gain_slider.on_changed(__gain_slider)
-    gain_text.on_submit(__gain_text)
+    gain_slider_secondary.on_changed(__gain_slider_secondary)
+    gain_text_secondary.on_submit(__gain_text_secondary)
 
     # Exposure
-    exposure_pos = [0, gain_pos[1]-options_height-padding, 1, options_height]
+    exposure_pos = [0, gain_primary_pos[1]-options_height-padding, 1, options_height]
     (exposure_slider, exposure_text) = __slider_with_text(fig,
                                                           exposure_pos,
                                                           'Exposure',
@@ -501,9 +557,22 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
     exposure_slider.on_changed(__exposure_slider)
     exposure_text.on_submit(__exposure_text)
 
+    # FPS
+    fps_pos = [0, exposure_pos[1]-options_height-padding, 1, options_height]
+    (fps_slider, fps_text) = __slider_with_text(fig,
+                                                fps_pos,
+                                                'FPS',
+                                                __FPS_MIN,
+                                                __FPS_MAX,
+                                                __FPS_MIN,
+                                                padding)
+    # Set callbacks
+    fps_slider.on_changed(__fps_slider)
+    fps_text.on_submit(__fps_text)
+
     # Set name format
     name_format_pos = [(0.5-2*padding)*0.1875+2*padding,
-                       exposure_pos[1]-options_height-padding,
+                       fps_pos[1]-options_height-padding,
                        (0.5-2*padding)*0.8125-padding,
                        options_height]
     name_format_axes = fig.add_axes(name_format_pos)
@@ -513,7 +582,7 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
 
     # Set counter
     counter_pos = [name_format_pos[0]+name_format_pos[2]+padding+(0.5-2*padding)*0.1875+2*padding,
-                   exposure_pos[1]-options_height-padding,
+                   fps_pos[1]-options_height-padding,
                    (0.5-2*padding)*0.8125-padding,
                    options_height]
     counter_axes = fig.add_axes(counter_pos)
@@ -521,42 +590,68 @@ def __stereo_gui(): # pylint: disable=too-many-locals,too-many-statements
     counter_text.label.set_fontsize(7)
     counter_text.set_val(1)
 
-    # Set save images button
-    save_images_button_pos = [padding,
-                              name_format_pos[1]-options_height-padding,
-                              0.5-2*padding,
-                              options_height]
-    save_images_button_axes = fig.add_axes(save_images_button_pos)
-    save_images_button = Button(save_images_button_axes, 'Save Image(s)')
-    save_images_button.label.set_fontsize(7)
+    # Set save primary button
+    save_primary_button_pos = [padding,
+                               name_format_pos[1]-options_height-padding,
+                               (0.5-4*padding)/3,
+                               options_height]
+    save_primary_button_axes = fig.add_axes(save_primary_button_pos)
+    save_primary_button = Button(save_primary_button_axes, 'Save Primary Image(s)')
+    save_primary_button.label.set_fontsize(7)
     # Set callback
-    save_images_button.on_clicked(__save_images)
+    save_primary_button.on_clicked(__save_primary_images)
 
-    # Set save image text
-    save_images_text_pos = [save_images_button_pos[0]+save_images_button_pos[2]+padding+(0.5-2*padding)*0.1875+2*padding,
-                            name_format_pos[1]-options_height-padding,
-                            (0.5-2*padding)*0.8125-padding,
-                            options_height]
-    save_images_text_axes = fig.add_axes(save_images_text_pos)
-    save_images_text = TextBox(save_images_text_axes, '#')
-    save_images_text.label.set_fontsize(7)
-    save_images_text.set_val(1)
+    # Set save secondary button
+    save_secondary_button_pos = [save_primary_button_pos[0]+save_primary_button_pos[2]+padding,
+                                 name_format_pos[1]-options_height-padding,
+                                 (0.5-4*padding)/3,
+                                 options_height]
+    save_secondary_button_axes = fig.add_axes(save_secondary_button_pos)
+    save_secondary_button = Button(save_secondary_button_axes, 'Save Secondary Image(s)')
+    save_secondary_button.label.set_fontsize(7)
+    # Set callback
+    save_secondary_button.on_clicked(__save_secondary_images)
+
+    # Set save stereo button
+    save_stereo_button_pos = [save_secondary_button_pos[0]+save_secondary_button_pos[2]+padding,
+                              name_format_pos[1]-options_height-padding,
+                              (0.5-4*padding)/3,
+                              options_height]
+    save_stereo_button_axes = fig.add_axes(save_stereo_button_pos)
+    save_stereo_button = Button(save_stereo_button_axes, 'Save Stereo Image(s)')
+    save_stereo_button.label.set_fontsize(7)
+    # Set callback
+    save_stereo_button.on_clicked(__save_stereo_images)
+
+    # Set num images text
+    num_images_text_pos = [save_stereo_button_pos[0]+save_stereo_button_pos[2]+padding+(0.5-2*padding)*0.1875+2*padding,
+                           name_format_pos[1]-options_height-padding,
+                           (0.5-2*padding)*0.8125-padding,
+                           options_height]
+    num_images_text_axes = fig.add_axes(num_images_text_pos)
+    num_images_text = TextBox(num_images_text_axes, '#')
+    num_images_text.label.set_fontsize(7)
+    num_images_text.set_val(1)
 
     return {'fig': fig,
             'cam_plot_primary_dict': cam_plot_primary_dict,
             'cam_plot_secondary_dict': cam_plot_secondary_dict,
             'start_stream_button': start_stream_button,
             'stop_stream_button': stop_stream_button,
-            'fps_slider': fps_slider,
-            'fps_text': fps_text,
-            'gain_slider': gain_slider,
-            'gain_text': gain_text,
+            'gain_slider_primary': gain_slider_primary,
+            'gain_text_primary': gain_text_primary,
+            'gain_slider_secondary': gain_slider_secondary,
+            'gain_text_secondary': gain_text_secondary,
             'exposure_slider': exposure_slider,
             'exposure_text': exposure_text,
+            'fps_slider': fps_slider,
+            'fps_text': fps_text,
             'name_format_text': name_format_text,
             'counter_text': counter_text,
-            'save_images_button': save_images_button,
-            'save_images_text': save_images_text}
+            'save_primary_button': save_primary_button,
+            'save_secondary_button': save_secondary_button,
+            'save_stereo_button': save_stereo_button,
+            'num_images_text': num_images_text}
 
 # -------------- #
 # Set up stream  #

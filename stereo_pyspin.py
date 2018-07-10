@@ -407,35 +407,15 @@ def secondary_node_cmd(cam_attr_str, cam_method_str, pyspin_mode_str=None, cam_m
                           pyspin_mode_str,
                           cam_method_arg)
 
-def get_frame_rate():
-    """ Gets frame rate """
+def get_gain_primary():
+    """ Gets gain from primary camera """
 
-    frame_rate_primary = primary_node_cmd('AcquisitionFrameRate', 'GetValue')
-    frame_rate_secondary = secondary_node_cmd('AcquisitionFrameRate', 'GetValue')
+    return primary_node_cmd('Gain', 'GetValue')
 
-    if frame_rate_primary != frame_rate_secondary:
-        warn('Primary and secondary frame rate are different: ' +
-             str([frame_rate_primary, frame_rate_secondary]) +
-             '. Returning the average value.')
+def get_gain_secondary():
+    """ Gets gain from secondary camera """
 
-        return (frame_rate_primary+frame_rate_secondary)/2
-
-    return frame_rate_primary
-
-def get_gain():
-    """ Gets gain """
-
-    gain_primary = primary_node_cmd('Gain', 'GetValue')
-    gain_secondary = secondary_node_cmd('Gain', 'GetValue')
-
-    if gain_primary != gain_secondary:
-        warn('Primary and secondary gain are different: ' +
-             str([gain_primary, gain_secondary]) +
-             '. Returning the average value.')
-
-        return (gain_primary+gain_secondary)/2
-
-    return gain_primary
+    return secondary_node_cmd('Gain', 'GetValue')
 
 def get_exposure():
     """ Gets exposure """
@@ -452,6 +432,21 @@ def get_exposure():
 
     return exposure_primary
 
+def get_frame_rate():
+    """ Gets frame rate """
+
+    frame_rate_primary = primary_node_cmd('AcquisitionFrameRate', 'GetValue')
+    frame_rate_secondary = secondary_node_cmd('AcquisitionFrameRate', 'GetValue')
+
+    if frame_rate_primary != frame_rate_secondary:
+        warn('Primary and secondary frame rate are different: ' +
+             str([frame_rate_primary, frame_rate_secondary]) +
+             '. Returning the average value.')
+
+        return (frame_rate_primary+frame_rate_secondary)/2
+
+    return frame_rate_primary
+
 def get_image_primary():
     """ Gets image from primary camera """
 
@@ -462,25 +457,17 @@ def get_image_secondary():
 
     return __get_image(__get_and_validate_streaming_cam_secondary())
 
-def set_frame_rate(frame_rate):
-    """ Sets frame rate for both cameras """
-
-    primary_node_cmd('AcquisitionFrameRate',
-                     'SetValue',
-                     'RW',
-                     frame_rate)
-    secondary_node_cmd('AcquisitionFrameRate',
-                       'SetValue',
-                       'RW',
-                       frame_rate)
-
-def set_gain(gain):
-    """ Sets gain for both cameras """
+def set_gain_primary(gain):
+    """ Sets gain for primary camera """
 
     primary_node_cmd('Gain',
                      'SetValue',
                      'RW',
                      gain)
+
+def set_gain_secondary(gain):
+    """ Sets gain for secondary camera """
+
     secondary_node_cmd('Gain',
                        'SetValue',
                        'RW',
@@ -497,6 +484,18 @@ def set_exposure(exposure):
                        'SetValue',
                        'RW',
                        exposure)
+
+def set_frame_rate(frame_rate):
+    """ Sets frame rate for both cameras """
+
+    primary_node_cmd('AcquisitionFrameRate',
+                     'SetValue',
+                     'RW',
+                     frame_rate)
+    secondary_node_cmd('AcquisitionFrameRate',
+                       'SetValue',
+                       'RW',
+                       frame_rate)
 
 def init_primary(yaml_path=None):
     """ Initializes primary camera using optional yaml file """
