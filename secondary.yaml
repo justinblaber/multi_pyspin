@@ -40,7 +40,7 @@ init:
         value: PySpin.GainAuto_Off
         access: RW
     - Gain:
-        value: 0
+        value: 3
         access: RW
     - BlackLevelSelector:
         value: PySpin.BlackLevelSelector_All
