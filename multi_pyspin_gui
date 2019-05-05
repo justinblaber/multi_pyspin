@@ -1,0 +1,843 @@
+#!/usr/bin/env python
+
+""" GUI for multiple cameras with PySpin library """
+
+import sys
+import queue
+import functools
+from datetime import datetime
+from tkinter import messagebox
+
+import numpy as np
+
+import matplotlib.pyplot as plt
+from matplotlib.widgets import TextBox
+from matplotlib.widgets import Button
+from matplotlib.widgets import Slider
+
+from PIL import Image
+
+import multi_pyspin
+
+# Set default number of cameras and set serial numbers
+_NUM_CAMS = 1
+_SERIALS = [None]
+
+# These are min/max values for BFS-U3-32S4M camera
+_FPS_MIN = 1
+_FPS_MAX = 118             # Manual says 118
+_GAIN_MIN = 0              # Units are dB
+_GAIN_MAX = 47             # Units are dB
+_EXPOSURE_MIN = 6          # units must be micro seconds
+_EXPOSURE_MAX = 29999999   # units must be micro seconds
+
+# Set a cutoff for get_image(), this will prevent infinite hanging in case a hardware trigger is set
+_GET_IMAGE_CUTOFF = 1000   # units are milliseconds
+
+# Set up GUI params
+_FIG = None
+_QUEUE = queue.Queue()
+_STREAMS = [False]
+_IMSHOW_DICTS = []
+_HIST_DICTS = []
+_GUI_DICT = None
+
+
+# -------------- #
+# Private        #
+# -------------- #
+
+
+def _save_single_image(cam_num):
+    """ Saves single image """
+
+    # Disable active stream
+    if _STREAMS[cam_num]:
+        multi_pyspin.end_acquisition(_SERIALS[cam_num])
+
+    # Set camera to acquire in single frame
+    multi_pyspin.node_cmd(_SERIALS[cam_num],
+                          'AcquisitionMode',
+                          'SetValue',
+                          'RW',
+                          'PySpin.AcquisitionMode_SingleFrame')
+
+    # Start acquisition
+    multi_pyspin.start_acquisition(_SERIALS[cam_num])
+
+    # Get name format, counter, and number of images
+    name_format = _GUI_DICT['name_format_text'].text
+    counter = int(_GUI_DICT['counter_text'].text)
+    num_images = int(_GUI_DICT['num_images_text'].text)
+
+    # Grab number of images
+    for num_image in range(num_images):
+        # Get image dict
+        image_dict = multi_pyspin.get_image(_SERIALS[cam_num], _GET_IMAGE_CUTOFF)  # Use cutoff to be safe
+
+        # Make sure image is complete
+        if image_dict:
+            # Save image
+            image_name = name_format.format(serial=_SERIALS[cam_num],
+                                            datetime=str(datetime.fromtimestamp(image_dict['timestamp']/1e6)),
+                                            cam=cam_num,
+                                            counter=counter+num_image)
+
+            # Remove spaces and dots; for now, only png is supported
+            image_name = image_name.replace(' ', '_').replace('.', '_') + '.png'
+
+            # Save image
+            print('Acquired: ' + image_name)
+            Image.fromarray(image_dict['data'].astype(np.uint32)).save(image_name,
+                                                                       optimize=False,
+                                                                       compress_level=0,
+                                                                       bits=image_dict['bitsperpixel'])
+
+        # Update counter
+        _GUI_DICT['counter_text'].set_val(str(counter+num_images))
+
+    # Set camera back to acquire continuously
+    multi_pyspin.node_cmd(_SERIALS[cam_num],
+                          'AcquisitionMode',
+                          'SetValue',
+                          'RW',
+                          'PySpin.AcquisitionMode_Continuous')
+
+    # Re-enable active streams
+    if _STREAMS[cam_num]:
+        multi_pyspin.start_acquisition(_SERIALS[cam_num])
+
+
+def _save_multi_image():
+    """ Saves multi image """
+
+    # Disable all active streams
+    for cam_num in range(_NUM_CAMS):
+        if _STREAMS[cam_num]:
+            multi_pyspin.end_acquisition(_SERIALS[cam_num])
+
+    # Set all cameras to acquire in single frame
+    for cam_num in range(_NUM_CAMS):
+        multi_pyspin.node_cmd(_SERIALS[cam_num],
+                              'AcquisitionMode',
+                              'SetValue',
+                              'RW',
+                              'PySpin.AcquisitionMode_SingleFrame')
+
+    # Start acquisition, but do first camera last to ensure secondary cameras get triggered
+    for cam_num in range(1, _NUM_CAMS):
+        multi_pyspin.start_acquisition(_SERIALS[cam_num])
+    multi_pyspin.start_acquisition(_SERIALS[0])
+
+    # Get name format, counter, and number of images
+    name_format = _GUI_DICT['name_format_text'].text
+    counter = int(_GUI_DICT['counter_text'].text)
+    num_images = int(_GUI_DICT['num_images_text'].text)
+
+    # Grab number of images
+    for num_image in range(num_images):
+        # Get images in order
+        for cam_num in range(_NUM_CAMS):
+            # Get image dict
+            image_dict = multi_pyspin.get_image(_SERIALS[cam_num], _GET_IMAGE_CUTOFF)  # Use cutoff to be safe
+
+            # Make sure image is complete
+            if image_dict:
+                # Save image
+                image_name = name_format.format(serial=_SERIALS[cam_num],
+                                                datetime=str(datetime.fromtimestamp(image_dict['timestamp']/1e6)),
+                                                cam=cam_num,
+                                                counter=counter+num_image)
+
+                # Remove spaces and dots; for now, only png is supported
+                image_name = image_name.replace(' ', '_').replace('.', '_') + '.png'
+
+                # Save image
+                print('Acquired: ' + image_name)
+                Image.fromarray(image_dict['data'].astype(np.uint32)).save(image_name,
+                                                                           optimize=False,
+                                                                           compress_level=0,
+                                                                           bits=image_dict['bitsperpixel'])
+
+        # Update counter
+        _GUI_DICT['counter_text'].set_val(str(counter+num_images))
+
+    # Set all cameras back to acquire continuously
+    for cam_num in range(_NUM_CAMS):
+        multi_pyspin.node_cmd(_SERIALS[cam_num],
+                              'AcquisitionMode',
+                              'SetValue',
+                              'RW',
+                              'PySpin.AcquisitionMode_Continuous')
+
+    # Re-enable all active streams
+    for cam_num in range(_NUM_CAMS):
+        if _STREAMS[cam_num]:
+            multi_pyspin.start_acquisition(_SERIALS[cam_num])
+
+
+# -------------- #
+# Wrappers       #
+# -------------- #
+
+
+def _queue_wrapper(func):
+    """ wraps function such that it gets inserted into the queue when called """
+
+    @functools.wraps(func)
+    def _wrapped_func(*args, **kwargs):
+        """ wrapped function """
+
+        _QUEUE.put((func, args, kwargs))
+    return _wrapped_func
+
+
+def _message_box_wrapper(func):
+    """ wraps function in try/except and pops up message box with exception """
+
+    @functools.wraps(func)
+    def _wrapped_func(*args, **kwargs):
+        """ wrapped function """
+
+        try:
+            func(*args, **kwargs)
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+    return _wrapped_func
+
+
+# -------------- #
+# Callbacks      #
+# -------------- #
+
+
+@_queue_wrapper
+@_message_box_wrapper
+def _num_cams(num_cams):
+    """ Handles changing the number of cameras """
+    global _NUM_CAMS, _SERIALS, _STREAMS, _GUI_DICT
+
+    # Set num cams
+    _NUM_CAMS = int(num_cams)
+
+    # Reset camera related lists
+    _SERIALS = [None] * _NUM_CAMS
+    _STREAMS = [False] * _NUM_CAMS
+
+    # Clear figure
+    _FIG.clf()
+
+    # Set GUI
+    _GUI_DICT = _multi_fig(_FIG)
+
+
+@_queue_wrapper
+@_message_box_wrapper
+def _setup(cam_num):
+    """ Sets up camera """
+
+    # Get yaml path
+    yaml_path = _GUI_DICT['cam_plot_dicts'][cam_num]['setup_text'].text
+
+    # Setup camera
+    serial = multi_pyspin.setup(yaml_path)
+
+    # Store serial
+    _SERIALS[cam_num] = serial
+
+@_queue_wrapper
+@_message_box_wrapper
+def _start_stream(cam_num):
+    """ Starts stream of camera """
+
+    # Make sure they aren't already streaming
+    if not _STREAMS[cam_num]:
+        print('Starting stream...')
+
+        # Set buffer to newest only
+        multi_pyspin.node_cmd(_SERIALS[cam_num],
+                              'TLStream.StreamBufferHandlingMode',
+                              'SetValue',
+                              'RW',
+                              'PySpin.StreamBufferHandlingMode_NewestOnly')
+
+        # Set acquisition mode to continuous
+        multi_pyspin.node_cmd(_SERIALS[cam_num],
+                              'AcquisitionMode',
+                              'SetValue',
+                              'RW',
+                              'PySpin.AcquisitionMode_Continuous')
+
+        # Start acquisition
+        multi_pyspin.start_acquisition(_SERIALS[cam_num])
+
+        # Enable stream
+        _STREAMS[cam_num] = True
+
+
+@_queue_wrapper
+@_message_box_wrapper
+def _stop_stream(cam_num):
+    """ Stops stream of camera """
+
+    # Make sure they're streaming
+    if _STREAMS[cam_num]:
+        print('Stopping stream...')
+
+        # Stop acquisition
+        multi_pyspin.end_acquisition(_SERIALS[cam_num])
+
+        # End stream
+        _STREAMS[cam_num] = False
+
+
+@_queue_wrapper
+@_message_box_wrapper
+def _gain_slider(cam_num):
+    """ gain slider callback """
+
+    gain = _GUI_DICT['cam_plot_dicts'][cam_num]['gain_slider'].val
+
+    # Update text to match slider
+    _GUI_DICT['cam_plot_dicts'][cam_num]['gain_text'].eventson = False
+    _GUI_DICT['cam_plot_dicts'][cam_num]['gain_text'].set_val(gain)
+    _GUI_DICT['cam_plot_dicts'][cam_num]['gain_text'].eventson = True
+
+    # Set gain for camera
+    multi_pyspin.set_gain(_SERIALS[cam_num], gain)
+
+
+@_queue_wrapper
+@_message_box_wrapper
+def _gain_text(cam_num):
+    """ gain text callback """
+
+    gain_text = _GUI_DICT['cam_plot_dicts'][cam_num]['gain_text'].text
+    if not gain_text:
+        return
+
+    gain = float(gain_text)
+
+    # Update slider to match text
+    _GUI_DICT['cam_plot_dicts'][cam_num]['gain_slider'].eventson = False
+    _GUI_DICT['cam_plot_dicts'][cam_num]['gain_slider'].set_val(gain)
+    _GUI_DICT['cam_plot_dicts'][cam_num]['gain_slider'].eventson = True
+
+    # Set gain for cameras
+    multi_pyspin.set_gain(_SERIALS[cam_num], gain)
+
+
+@_queue_wrapper
+@_message_box_wrapper
+def _exposure_slider(cam_num):
+    """ exposure slider callback """
+
+    gain = _GUI_DICT['exposure_slider'].val
+
+    # Update text to match slider
+    _GUI_DICT['exposure_text'].eventson = False
+    _GUI_DICT['exposure_text'].set_val(gain)
+    _GUI_DICT['exposure_text'].eventson = True
+
+    # Set exposure for camera
+    multi_pyspin.set_exposure(_SERIALS[cam_num], gain)
+
+
+@_queue_wrapper
+@_message_box_wrapper
+def _exposure_text(cam_num):
+    """ exposure text callback """
+
+    exposure_text = _GUI_DICT['exposure_text'].text
+    if not exposure_text:
+        return
+
+    exposure = float(exposure_text)
+
+    # Update slider to match text
+    _GUI_DICT['exposure_slider'].eventson = False
+    _GUI_DICT['exposure_slider'].set_val(exposure)
+    _GUI_DICT['exposure_slider'].eventson = True
+
+    # Set exposure for cameras
+    multi_pyspin.set_exposure(_SERIALS[cam_num], exposure)
+
+
+@_queue_wrapper
+@_message_box_wrapper
+def _fps_slider(cam_num):
+    """ fps slider callback """
+
+    gain = _GUI_DICT['fps_slider'].val
+
+    # Update text to match slider
+    _GUI_DICT['fps_text'].eventson = False
+    _GUI_DICT['fps_text'].set_val(gain)
+    _GUI_DICT['fps_text'].eventson = True
+
+    # Set fps for camera
+    multi_pyspin.set_fps(_SERIALS[cam_num], gain)
+
+
+@_queue_wrapper
+@_message_box_wrapper
+def _fps_text(cam_num):
+    """ fps text callback """
+
+    fps_text = _GUI_DICT['fps_text'].text
+    if not fps_text:
+        return
+
+    fps = float(fps_text)
+
+    # Update slider to match text
+    _GUI_DICT['fps_slider'].eventson = False
+    _GUI_DICT['fps_slider'].set_val(fps)
+    _GUI_DICT['fps_slider'].eventson = True
+
+    # Set fps for cameras
+    multi_pyspin.set_fps(_SERIALS[cam_num], fps)
+
+
+@_queue_wrapper
+@_message_box_wrapper
+def _save_primary_images(_=None):
+    """ Save primary image(s) """
+
+    _save_images('primary')
+
+
+@_queue_wrapper
+@_message_box_wrapper
+def _save_secondary_images(_=None):
+    """ Save secondary image(s) """
+
+    _save_images('secondary')
+
+
+@_queue_wrapper
+@_message_box_wrapper
+def _save_multi_images(_=None):
+    """ Save multi image(s) """
+
+    _save_images('multi')
+
+# -------------- #
+# GUI            #
+# -------------- #
+
+
+def _slider_with_text(fig, pos, slider_str, val_min, val_max, val_default, padding):
+    """ Creates a slider with text box given a position """
+
+    # position params
+    slider_left_offset = (pos[2]-4*padding)/3 + 2*padding
+    slider_width = (pos[2]-4*padding)/3
+    text_width = pos[2] - slider_left_offset - slider_width - 2*padding
+
+    # Slider
+    slider_pos = [pos[0]+slider_left_offset,
+                  pos[1],
+                  slider_width,
+                  pos[3]]
+    slider_axes = fig.add_axes(slider_pos)
+    slider = Slider(slider_axes,
+                    slider_str,
+                    val_min,
+                    val_max,
+                    valinit=val_default,
+                    dragging=False)
+    slider.valtext.set_visible(False)
+    slider.label.set_fontsize(7)
+
+    # Text
+    text_pos = [slider_pos[0]+slider_pos[2]+padding,
+                slider_pos[1],
+                text_width,
+                pos[3]]
+    text_axes = fig.add_axes(text_pos)
+    text = TextBox(text_axes, '')
+
+    return slider, text
+
+
+def _cam_plot(fig, pos, cam_str, row_height, padding):
+    """ Creates 'camera' plot; make one of these per camera """
+
+    # position params
+    num_rows = 3
+    residual_height = pos[3] - num_rows*row_height - (num_rows+3)*padding
+    image_height = residual_height*0.85
+    image_width = pos[2]-2*padding
+    hist_height = residual_height-image_height
+
+    # image axes
+    image_pos = [pos[0]+padding, pos[1]+pos[3]-image_height-padding, image_width, image_height]
+    image_axes = fig.add_axes(image_pos)
+    image_axes.set_xticklabels([])
+    image_axes.set_yticklabels([])
+    image_axes.set_xticks([])
+    image_axes.set_yticks([])
+
+    # hist axes
+    hist_pos = [image_pos[0], image_pos[1]-hist_height-padding, image_width, hist_height]
+    hist_axes = fig.add_axes(hist_pos)
+    hist_axes.set_xticklabels([])
+    hist_axes.set_yticklabels([])
+    hist_axes.set_xticks([])
+    hist_axes.set_yticks([])
+
+    # setup button
+    setup_button_pos = [image_pos[0],
+                        hist_pos[1] - row_height - padding,
+                        (image_width-padding)/2,
+                        row_height]
+    setup_button_axes = fig.add_axes(setup_button_pos)
+    setup_button = Button(setup_button_axes, 'Setup Cam "' + cam_str + '"')
+    setup_button.label.set_fontsize(7)
+
+    # setup text
+    setup_text_pos = [setup_button_pos[0] + setup_button_pos[2] + padding,
+                      setup_button_pos[1],
+                      (image_width-padding)/2,
+                      row_height]
+    setup_text_axes = fig.add_axes(setup_text_pos)
+    setup_text = TextBox(setup_text_axes, '')
+
+    # start stream button
+    start_stream_button_pos = [setup_button_pos[0],
+                               setup_button_pos[1] - row_height - padding,
+                               (image_width-padding)/2,
+                               row_height]
+    start_stream_button_axes = fig.add_axes(start_stream_button_pos)
+    start_stream_button = Button(start_stream_button_axes, 'Start Stream')
+    start_stream_button.label.set_fontsize(7)
+
+    # stop stream button
+    stop_stream_button_pos = [start_stream_button_pos[0] + start_stream_button_pos[2] + padding,
+                              start_stream_button_pos[1],
+                              (image_width-padding)/2,
+                              row_height]
+    stop_stream_button_axes = fig.add_axes(stop_stream_button_pos)
+    stop_stream_button = Button(stop_stream_button_axes, 'Stop Stream')
+    stop_stream_button.label.set_fontsize(7)
+
+    # gain slider
+    gain_pos = [pos[0], pos[1]+padding, pos[2], row_height]
+    gain_slider, gain_text = _slider_with_text(fig,
+                                               gain_pos,
+                                               'Gain',
+                                               _GAIN_MIN,
+                                               _GAIN_MAX,
+                                               _GAIN_MIN,
+                                               padding)
+
+    return {'image_axes': image_axes,
+            'hist_axes': hist_axes,
+            'setup_button': setup_button,
+            'setup_text': setup_text,
+            'start stream_button': start_stream_button,
+            'stop stream_button': stop_stream_button,
+            'gain_slider': gain_slider,
+            'gain_text': gain_text}
+
+
+def _multi_fig(fig):
+    """ Creates GUI figure """
+
+    # Position params
+    padding = 0.01
+    row_height = 0.02
+    num_top_rows = 1
+    num_bottom_rows = 4
+    cam_plot_height_offset = num_bottom_rows*row_height + num_bottom_rows*padding
+    cam_plot_width = (1-(_NUM_CAMS+1)*padding)/_NUM_CAMS + 2*padding
+    cam_plot_height = 1 - cam_plot_height_offset - (num_top_rows*row_height + num_top_rows*padding)
+    name_format_width = (1 - 5*padding)/4
+    counter_width = (1 - 5*padding)/4
+    save_width = (0.5 - (_NUM_CAMS+1.5)*padding)/(_NUM_CAMS+1)
+    num_images_width = (0.5 - 2.5*padding)/2
+
+    # num cams text
+    num_cams_width = (1-3*padding)/2
+    num_cams_text_pos = [num_cams_width + 2*padding,
+                         1-row_height-padding,
+                         num_cams_width,
+                         row_height]
+    num_cams_text_axes = fig.add_axes(num_cams_text_pos)
+    num_cams_text = TextBox(num_cams_text_axes, 'Num cams:')
+    num_cams_text.set_val(str(_NUM_CAMS))
+    num_cams_text.on_submit(_num_cams)
+
+    # camera plots
+    cam_plot_dicts = []
+    for i in range(_NUM_CAMS):
+        cam_plot_pos = [i*(cam_plot_width-padding),
+                        cam_plot_height_offset,
+                        cam_plot_width,
+                        cam_plot_height]
+        cam_plot_dict = _cam_plot(fig,
+                                  cam_plot_pos,
+                                  str(i+1),
+                                  row_height,
+                                  padding)
+        # callback
+        cam_plot_dict['setup_button'].on_clicked(lambda _, i=i: _setup(i))
+        cam_plot_dict['start stream_button'].on_clicked(lambda _, i=i: _start_stream(i))
+        cam_plot_dict['stop stream_button'].on_clicked(lambda _, i=i: _stop_stream(i))
+        cam_plot_dict['gain_slider'].on_changed(lambda _, i=i: _gain_slider(i))
+        cam_plot_dict['gain_text'].on_submit(lambda _, i=i: _gain_text(i))
+
+        # Append
+        cam_plot_dicts.append(cam_plot_dict)
+
+    # exposure slider
+    exposure_pos = [0, 3*row_height + 4*padding, 1, row_height]
+    exposure_slider, exposure_text = _slider_with_text(fig,
+                                                       exposure_pos,
+                                                       'Exposure',
+                                                       _EXPOSURE_MIN,
+                                                       _EXPOSURE_MAX,
+                                                       _EXPOSURE_MIN,
+                                                       padding)
+    # callback
+    exposure_slider.on_changed(lambda _, i=i: _exposure_slider(i))
+    exposure_text.on_submit(lambda _, i=i: _exposure_text(i))
+
+    # FPS slider
+    fps_pos = [0, 2*row_height + 3*padding, 1, row_height]
+    fps_slider, fps_text = _slider_with_text(fig,
+                                             fps_pos,
+                                             'FPS',
+                                             _FPS_MIN,
+                                             _FPS_MAX,
+                                             _FPS_MIN,
+                                              padding)
+    # callback
+
+    # name format
+    name_format_pos = [name_format_width + 2*padding,
+                       fps_pos[1]-row_height-padding,
+                       name_format_width,
+                       row_height]
+    name_format_axes = fig.add_axes(name_format_pos)
+    name_format_text = TextBox(name_format_axes, 'Name format')
+    name_format_text.label.set_fontsize(7)
+    name_format_text.set_val('{serial}_{datetime}_{cam}_{counter}')
+    # callback
+
+    # counter
+    counter_pos = [name_format_pos[0] + name_format_pos[2] + counter_width + 2*padding,
+                   name_format_pos[1],
+                   counter_width,
+                   row_height]
+    counter_axes = fig.add_axes(counter_pos)
+    counter_text = TextBox(counter_axes, 'Counter')
+    counter_text.label.set_fontsize(7)
+    counter_text.set_val(1)
+    # callback
+
+    # save buttons
+    save_buttons = []
+    for i in range(_NUM_CAMS):
+        # save button
+        save_button_pos = [i*save_width + (i+1)*padding,
+                           padding,
+                           save_width,
+                           row_height]
+        save_button_axes = fig.add_axes(save_button_pos)
+        save_button = Button(save_button_axes, 'Save Cam "' + str(i+1) + '"')
+        save_button.label.set_fontsize(7)
+        # Append
+        save_buttons.append(save_button)
+        # callback
+
+    # multi save button
+    save_button_pos = [_NUM_CAMS*save_width + (_NUM_CAMS+1)*padding,
+                       padding,
+                       save_width,
+                       row_height]
+    save_button_axes = fig.add_axes(save_button_pos)
+    save_button = Button(save_button_axes, 'Save Multi')
+    save_button.label.set_fontsize(7)
+    # Append
+    save_buttons.append(save_button)
+    # callback
+
+    # num images text
+    num_images_text_pos = [save_button_pos[0] + save_button_pos[2] + num_images_width + 2*padding,
+                           save_button_pos[1],
+                           num_images_width,
+                           row_height]
+    num_images_text_axes = fig.add_axes(num_images_text_pos)
+    num_images_text = TextBox(num_images_text_axes, '# Images')
+    num_images_text.label.set_fontsize(7)
+    num_images_text.set_val(1)
+    # callback
+
+
+    return {'num_cams_text': num_cams_text,
+            'cam_plot_dicts': cam_plot_dicts,
+            'exposure_slider': exposure_slider,
+            'exposure_text': exposure_text,
+            'fps_slider': fps_slider,
+            'fps_text': fps_text,
+            'name_format_text': name_format_text,
+            'counter_text': counter_text,
+            'save_buttons': save_buttons,
+            'num_images_text': num_images_text}
+
+
+# -------------- #
+# Set up stream  #
+# -------------- #
+
+
+def _plot_image(image, max_val, image_axes, imshow_dict):
+    """ plots image somewhat fast """
+
+    # If image size changes or max val changes, then we must replot imshow
+    if image.shape != imshow_dict['imshow_size'] or max_val != imshow_dict['max_val']:
+        # Must reset axes and re-imshow()
+        image_axes.cla()
+        imshow_dict['imshow'] = image_axes.imshow(image, cmap='gray', vmin=0, vmax=max_val)
+        imshow_dict['imshow_size'] = image.shape
+        imshow_dict['max_val'] = max_val
+        image_axes.set_xticklabels([])
+        image_axes.set_yticklabels([])
+        image_axes.set_xticks([])
+        image_axes.set_yticks([])
+    else:
+        # Can just "set_data" since data is the same size and has the same max val
+        imshow_dict['imshow'].set_data(image)
+
+    return imshow_dict
+
+
+def _plot_hist(image, max_val, hist_axes, hist_dict):
+    """ plots histogram """
+
+    # Calculate histogram
+    num_bins = 100
+    hist, bins = np.histogram(image.ravel(), normed=True, bins=num_bins, range=(0, max_val))
+
+    # If histogram hasn't been plotted yet or max val changes, then we must replot histogram
+    if hist_dict['bar'] is None or hist_dict['max_val'] != max_val:
+        # Must reset axes and plot hist
+        hist_axes.cla()
+        hist_dict['bar'] = hist_axes.bar(bins[:-1], hist, color='k', width=(max_val+1)/num_bins)
+        hist_dict['max_val'] = max_val
+        hist_axes.set_xticklabels([])
+        hist_axes.set_yticklabels([])
+        hist_axes.set_xticks([])
+        hist_axes.set_yticks([])
+    else:
+        # Just reset height
+        for i, bar in enumerate(hist_dict['bar']):
+            bar.set_height(hist[i])
+
+    return hist_dict
+
+
+def _plot_image_and_hist(image, max_val, image_axes, imshow_dict, hist_axes, hist_dict):
+    """ plots image and histogram """
+
+    # Plot image
+    imshow_dict = _plot_image(image, max_val, image_axes, imshow_dict)
+
+    # Plot histogram
+    hist_dict = _plot_hist(image, max_val, hist_axes, hist_dict)
+
+    return imshow_dict, hist_dict
+
+
+@_queue_wrapper
+@_message_box_wrapper
+def _stream_images():
+    """ stream update of images """
+    global _IMSHOW_PRIMARY_DICT, _IMSHOW_SECONDARY_DICT
+    global _HIST_PRIMARY_DICT, _HIST_SECONDARY_DICT
+
+    try:
+        # Get image dicts - Must acquire primary image first in case there is a hardware trigger!
+        image_primary_dict = multi_pyspin.get_image_primary()
+        image_secondary_dict = multi_pyspin.get_image_secondary()
+
+        # Make sure images are complete
+        if 'data' in image_primary_dict and 'data' in image_secondary_dict:
+            # Plot primary image and histogram
+            _IMSHOW_PRIMARY_DICT, _HIST_PRIMARY_DICT = _plot_image_and_hist(image_primary_dict['data'],
+                                                                               2**image_primary_dict['bitsperpixel']-1,
+                                                                               _GUI_DICT['cam_plot_primary_dict']['image_axes'],
+                                                                               _IMSHOW_PRIMARY_DICT,
+                                                                               _GUI_DICT['cam_plot_primary_dict']['hist_axes'],
+                                                                               _HIST_PRIMARY_DICT)
+
+            # Plot secondary image and histogram
+            _IMSHOW_SECONDARY_DICT, _HIST_SECONDARY_DICT = _plot_image_and_hist(image_secondary_dict['data'],
+                                                                                2**image_secondary_dict['bitsperpixel']-1,
+                                                                                _GUI_DICT['cam_plot_secondary_dict']['image_axes'],
+                                                                                _IMSHOW_SECONDARY_DICT,
+                                                                                _GUI_DICT['cam_plot_secondary_dict']['hist_axes'],
+                                                                                _HIST_SECONDARY_DICT)
+    except:
+        if _STREAMS:
+            # Only re-raise error if stream is still enabled
+            raise
+
+
+# -------------- #
+# Start gui      #
+# -------------- #
+
+
+def main():
+    """ Main program """
+    global _FIG
+    global _QUEUE
+    global _STREAMS
+    global _IMSHOW_PRIMARY_DICT, _IMSHOW_SECONDARY_DICT
+    global _HIST_PRIMARY_DICT, _HIST_SECONDARY_DICT
+    global _GUI_DICT
+
+    # Create figure
+    _FIG = plt.figure()
+
+    # Set GUI
+    _GUI_DICT = _multi_fig(_FIG)
+
+    # Update plot while figure exists
+    while plt.fignum_exists(_FIG.number):
+        try:
+            # # Handle streams
+            # if _STREAMS:
+            #     _stream_images()
+            #
+            # Handle queue
+            while not _QUEUE.empty():
+                func, args, kwargs = _QUEUE.get()
+                func(*args, **kwargs)
+
+            # Update plot
+            plt.pause(sys.float_info.min)
+        except:
+            if plt.fignum_exists(_FIG.number):
+                # Only re-raise error if figure is still open
+                raise
+
+    # # Clean up
+    # _QUEUE = queue.Queue()
+    # _STREAMS = False
+    # _IMSHOW_PRIMARY_DICT = {'imshow': None, 'imshow_size': None}
+    # _IMSHOW_SECONDARY_DICT = {'imshow': None, 'imshow_size': None}
+    # _HIST_PRIMARY_DICT = {'bar': None}
+    # _HIST_SECONDARY_DICT = {'bar': None}
+    # _GUI_DICT = None
+
+    print('Exiting...')
+
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

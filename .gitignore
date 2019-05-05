@@ -12,3 +12,9 @@ build/
 
 # Singularity
 *.img
+
+# Pycharm
+.idea
+
+# Virtual Environment
+venv
