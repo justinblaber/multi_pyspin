@@ -2,8 +2,16 @@
 
 """ simple 'singleton' API for multiple cameras with PySpin library """
 
+# Designed and tested on:
+#   -camera:                        Blackfly S BFS-U3-32S4M
+#   -firmware:                      1804.0.113.0
+#   -spinnaker version:             spinnaker-1.21.0.61-amd64-Ubuntu18.04-pkg
+#   -spinnaker python version:      spinnaker_python-1.21.0.61-cp36-cp36m-linux_x86_64
+
 import os
 import atexit
+import statistics
+from datetime import datetime
 from contextlib import suppress
 
 import yaml
@@ -19,8 +27,12 @@ import PySpin
 _SYSTEM = None
 _SYSTEM_EVENT_HANDLER = None
 
-# Maintain dictionary which keeps correspondences between camera serial and camera object
+# Maintain dictionary which keeps correspondences between camera serial and camera stuff (camera object, timestamp
+# offset, etc...)
 _CAM_DICT = {}
+
+# Set number of iterations used to compute timestamp offset
+_TIMESTAMP_OFFSET_ITERATIONS = 20
 
 
 # ------------------- #
@@ -32,7 +44,7 @@ def _node_cmd(cam, cam_attr_str, cam_method_str, pyspin_mode_str=None, cam_metho
     """ Performs method on input cam attribute with optional access mode check """
 
     # Print command info
-    info_str = 'Executing: "' + '.'.join([cam_attr_str, cam_method_str]) + '('
+    info_str = cam.GetUniqueID() + ' - executing: "' + '.'.join([cam_attr_str, cam_method_str]) + '('
     if cam_method_arg is not None:
         info_str += str(cam_method_arg)
     print(info_str + ')"')
@@ -71,7 +83,10 @@ def _setup(cam, yaml_path):
     if not os.path.isfile(yaml_path):
         raise RuntimeError('"' + yaml_path + '" could not be found!')
 
-    # Must Init() camera first
+    # Print setup
+    print(cam.GetUniqueID() + ' - setting up...')
+
+    # Init camera
     cam.Init()
 
     # Load yaml file and grab init commands
@@ -127,11 +142,39 @@ def _setup(cam, yaml_path):
                                        'Please fix: ' + str(cam_attr_str))
 
 
-def _get_image(cam, *args):
+def _compute_timestamp_offset(cam, timestamp_offset_iterations):
+    """ Gets timestamp offset in seconds from input camera """
+
+    # This method is required because the timestamp stored on the camera is relative to when it was powered on, so an
+    # offset needs to be applied to get it into epoch time; from tests I've done, this appears to be accurate to ~1e-3
+    # seconds.
+
+    timestamp_offsets = []
+    for i in range(timestamp_offset_iterations):
+        # Latch timestamp. This basically "freezes" the current camera timer into a variable that can be read with
+        # TimestampLatchValue()
+        cam.TimestampLatch()
+
+        # Compute timestamp offset in seconds; note that timestamp latch value is in nanoseconds
+        timestamp_offset = datetime.now().timestamp() - cam.TimestampLatchValue()/1e9
+
+        # Append
+        timestamp_offsets.append(timestamp_offset)
+
+    # Get the median value
+    timestamp_offset = statistics.median(timestamp_offsets)
+
+    # Print timestamp offset
+    print(cam.GetUniqueID() + ' - computed timestamp offset: ' + str(timestamp_offset))
+
+    return timestamp_offset
+
+
+def _get_image(cam, timestamp_offset, *args):
     """ Gets image (and other info) from input camera """
 
     # Get image object
-    image = cam.GetNextImage(*args)
+    image = cam.GetNextImage(*args)  # args is most likely just a timeout in case hardware trigger is set
 
     # Initialize image dict
     image_dict = {}
@@ -139,9 +182,10 @@ def _get_image(cam, *args):
     # Ensure image is complete
     if not image.IsIncomplete():
         # Get data/metadata
-        image_dict['data'] = image.GetNDArray()
-        image_dict['timestamp'] = image.GetTimeStamp()
-        image_dict['bitsperpixel'] = image.GetBitsPerPixel()
+        image_dict['data'] = image.GetNDArray()                                 # numpy array
+        image_dict['timestamp'] = timestamp_offset + image.GetTimeStamp()/1e9   # timestamp in seconds
+        image_dict['bitsperpixel'] = image.GetBitsPerPixel()                    # bits per pixel
+        image_dict['frameid'] = image.GetFrameID()                              # frame id
 
     # PySpin image goes out of scope here, so no need to explicitly release the image
 
@@ -178,31 +222,52 @@ def _validate_cam_streaming(cam, serial):
 # ------------------- #
 
 
+def _validate_serial(serial):
+    """ Checks to see if serial is valid """
+
+    if serial not in _CAM_DICT:
+        raise RuntimeError('Camera "' + serial + '" not valid, please connect or reconnect!')
+
+
 def _handle_cam_arrival(serial):
-    """ Handles adding a new camera """
+    """ Handles adding a camera """
 
-    print('Camera "' + serial + '" connected.')
+    print(serial + ' - connected')
 
-    # Add to serial dict
-    _CAM_DICT[serial] = _SYSTEM.GetCameras().GetBySerial(serial)
+    # Get camera object
+    cam = _SYSTEM.GetCameras().GetBySerial(serial)
+
+    # Get timestamp offset; must initialize first before timestamp can be computed
+    cam.Init()
+    timestamp_offset = _compute_timestamp_offset(cam, _TIMESTAMP_OFFSET_ITERATIONS)
+
+    # Add cam stuff to dict
+    _CAM_DICT[serial] = {'cam': cam, 'timestamp_offset': timestamp_offset}
 
 
 def _handle_cam_removal(serial):
-    """ Handles removing a new camera """
+    """ Handles removing a camera """
 
-    print('Camera "' + serial + '" removed.')
+    print(serial + ' - removed')
 
-    # Remove from serial dict
+    # Remove cam stuff from dict
     _CAM_DICT.pop(serial, None)
 
 
 def _get_cam(serial):
     """ Returns camera """
 
-    if serial not in _CAM_DICT:
-        raise RuntimeError('Camera "' + serial + '" not connected!')
+    _validate_serial(serial)
 
-    return _CAM_DICT[serial]
+    return _CAM_DICT[serial]['cam']
+
+
+def _get_timestamp_offset(serial):
+    """ Returns camera timestamp offset """
+
+    _validate_serial(serial)
+
+    return _CAM_DICT[serial]['timestamp_offset']
 
 
 def _get_and_validate_cam(serial):
@@ -246,8 +311,6 @@ def setup(yaml_path):
         else:
             raise RuntimeError('Invalid yaml file: "' + yaml_path + '". Missing "serial" field.')
 
-    print('Setting up camera "' + serial + '"...')
-
     # Setup cam
     _setup(_get_and_validate_cam(serial), yaml_path)
 
@@ -267,19 +330,6 @@ def deinit(serial):
     _get_and_validate_cam(serial).DeInit()
 
 
-def node_cmd(serial, cam_attr_str, cam_method_str, pyspin_mode_str=None, cam_method_arg=None):
-    """ Performs method on input cam attribute with optional access mode check """
-
-    # This function allows running node commands without explicitly accessing the camera object, which is nice as the
-    # caller doesn't need to worry about handling/clearing cam objects
-
-    return _node_cmd(_get_and_validate_init_cam(serial),
-                     cam_attr_str,
-                     cam_method_str,
-                     pyspin_mode_str,
-                     cam_method_arg)
-
-
 def get_gain(serial):
     """ Gets gain from camera """
 
@@ -293,7 +343,7 @@ def set_gain(serial, gain):
 
 
 def get_exposure(serial):
-    """ Gets exposure """
+    """ Gets exposure from camera """
 
     return node_cmd(serial, 'ExposureTime', 'GetValue')
 
@@ -305,13 +355,13 @@ def set_exposure(serial, exposure):
 
 
 def get_frame_rate(serial):
-    """ Gets frame rate """
+    """ Gets frame rate from camera """
 
     return node_cmd(serial, 'AcquisitionFrameRate', 'GetValue')
 
 
 def set_frame_rate(serial, frame_rate):
-    """ Sets frame rate for cameras """
+    """ Sets frame rate for camera """
 
     node_cmd(serial, 'AcquisitionFrameRate', 'SetValue', 'RW', frame_rate)
 
@@ -333,7 +383,34 @@ def get_image(serial, *args):
 
     # TODO: test speed of this function; make sure it can hit max FPS. If not, maybe add option to skip some validation
 
-    return _get_image(_get_and_validate_streaming_cam(serial), *args)
+    return _get_image(_get_and_validate_streaming_cam(serial),
+                      _get_timestamp_offset(serial),
+                      *args)
+
+
+def node_cmd(serial, cam_attr_str, cam_method_str, pyspin_mode_str=None, cam_method_arg=None):
+    """ Performs method on input cam attribute with optional access mode check """
+
+    # This function allows running node commands without explicitly accessing the camera object, which is nice as the
+    # caller doesn't need to worry about handling/clearing cam objects
+
+    return _node_cmd(_get_and_validate_init_cam(serial),
+                     cam_attr_str,
+                     cam_method_str,
+                     pyspin_mode_str,
+                     cam_method_arg)
+
+
+def update_timestamp_offset(serial):
+    """ Updates timestamp offset """
+
+    # I've included this function because I assume if the camera has been running for quite a bit of time since the
+    # offset was last computed, there might be some error.
+
+    _validate_serial(serial)
+
+    _CAM_DICT[serial]['timestamp_offset'] = _compute_timestamp_offset(_get_and_validate_init_cam(serial),
+                                                                      _TIMESTAMP_OFFSET_ITERATIONS)
 
 
 # --------------------#
@@ -375,7 +452,7 @@ def _constructor():
     # cams should clear itself after going out of scope
 
 
-_constructor()  # Should be called once when first imported - note that ipython with autoreload might break this
+_constructor()  # Should be called once when first imported
 
 
 # --------------------#
@@ -388,9 +465,6 @@ def _destructor():
 
     print('Cleaning up multi_pyspin...')
 
-    # NOTE: it might actually be a nice feature to allow cameras to remain initialized and streaming after exiting...
-    # Maybe come back to this later.
-
     # Clean up cameras
     for serial in list(_CAM_DICT):  # Use list() to cache since stuff is getting removed from dictionary in loop
         # End acquisition
@@ -401,7 +475,7 @@ def _destructor():
         with suppress(Exception):
             deinit(serial)
 
-        # Clear camera reference
+        # Clear camera stuff
         _CAM_DICT.pop(serial, None)
 
     # Debug output if system is still in use some how

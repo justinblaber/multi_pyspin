@@ -2,6 +2,12 @@
 
 """ GUI for multiple cameras with PySpin library """
 
+# Designed and tested on:
+#   -camera:                        Blackfly S BFS-U3-32S4M
+#   -firmware:                      1804.0.113.0
+#   -spinnaker version:             spinnaker-1.20.0.14-amd64-bionic-pkg.tar.gz
+#   -spinnaker python version:      spinnaker_python-1.20.0.14-cp36-cp36m-linux_x86_64.whl
+
 import sys
 import queue
 import functools
@@ -23,6 +29,7 @@ import multi_pyspin
 _NUM_CAMS = 1
 _SERIALS = [None]
 
+
 # These are min/max values for BFS-U3-32S4M camera
 _FPS_MIN = 1
 _FPS_MAX = 118             # Manual says 118
@@ -31,8 +38,10 @@ _GAIN_MAX = 47             # Units are dB
 _EXPOSURE_MIN = 6          # units must be micro seconds
 _EXPOSURE_MAX = 29999999   # units must be micro seconds
 
+
 # Set a cutoff for get_image(), this will prevent infinite hanging in case a hardware trigger is set
-_GET_IMAGE_CUTOFF = 1000   # units are milliseconds
+_GET_IMAGE_TIMEOUT = 1000  # units are milliseconds
+
 
 # Set up GUI params
 _FIG = None
@@ -73,13 +82,13 @@ def _save_single_image(cam_num):
     # Grab number of images
     for num_image in range(num_images):
         # Get image dict
-        image_dict = multi_pyspin.get_image(_SERIALS[cam_num], _GET_IMAGE_CUTOFF)  # Use cutoff to be safe
+        image_dict = multi_pyspin.get_image(_SERIALS[cam_num], _GET_IMAGE_TIMEOUT)  # Use cutoff to be safe
 
         # Make sure image is complete
         if image_dict:
             # Save image
             image_name = name_format.format(serial=_SERIALS[cam_num],
-                                            datetime=str(datetime.fromtimestamp(image_dict['timestamp']/1e6)),
+                                            datetime=str(datetime.fromtimestamp(image_dict['timestamp'])),
                                             cam=cam_num,
                                             counter=counter+num_image)
 
@@ -139,7 +148,7 @@ def _save_multi_image():
         # Get images in order
         for cam_num in range(_NUM_CAMS):
             # Get image dict
-            image_dict = multi_pyspin.get_image(_SERIALS[cam_num], _GET_IMAGE_CUTOFF)  # Use cutoff to be safe
+            image_dict = multi_pyspin.get_image(_SERIALS[cam_num], _GET_IMAGE_TIMEOUT)  # Use cutoff to be safe
 
             # Make sure image is complete
             if image_dict:
