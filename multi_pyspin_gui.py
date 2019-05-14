@@ -5,8 +5,8 @@
 # Designed and tested on:
 #   -camera:                        Blackfly S BFS-U3-32S4M
 #   -firmware:                      1804.0.113.0
-#   -spinnaker version:             spinnaker-1.20.0.14-amd64-bionic-pkg.tar.gz
-#   -spinnaker python version:      spinnaker_python-1.20.0.14-cp36-cp36m-linux_x86_64.whl
+#   -spinnaker version:             spinnaker-1.21.0.61-amd64-Ubuntu18.04-pkg
+#   -spinnaker python version:      spinnaker_python-1.21.0.61-cp36-cp36m-linux_x86_64
 
 import sys
 import queue
@@ -25,164 +25,29 @@ from PIL import Image
 
 import multi_pyspin
 
+
 # Set default number of cameras and set serial numbers
 _NUM_CAMS = 1
 _SERIALS = [None]
 
-
 # These are min/max values for BFS-U3-32S4M camera
 _FPS_MIN = 1
-_FPS_MAX = 118             # Manual says 118
+_FPS_MAX = 120
 _GAIN_MIN = 0              # Units are dB
 _GAIN_MAX = 47             # Units are dB
 _EXPOSURE_MIN = 6          # units must be micro seconds
 _EXPOSURE_MAX = 29999999   # units must be micro seconds
 
-
 # Set a cutoff for get_image(), this will prevent infinite hanging in case a hardware trigger is set
 _GET_IMAGE_TIMEOUT = 1000  # units are milliseconds
-
 
 # Set up GUI params
 _FIG = None
 _QUEUE = queue.Queue()
 _STREAMS = [False]
-_IMSHOW_DICTS = []
-_HIST_DICTS = []
+_IMSHOW_DICTS = [{}]
+_HIST_DICTS = [{}]
 _GUI_DICT = None
-
-
-# -------------- #
-# Private        #
-# -------------- #
-
-
-def _save_single_image(cam_num):
-    """ Saves single image """
-
-    # Disable active stream
-    if _STREAMS[cam_num]:
-        multi_pyspin.end_acquisition(_SERIALS[cam_num])
-
-    # Set camera to acquire in single frame
-    multi_pyspin.node_cmd(_SERIALS[cam_num],
-                          'AcquisitionMode',
-                          'SetValue',
-                          'RW',
-                          'PySpin.AcquisitionMode_SingleFrame')
-
-    # Start acquisition
-    multi_pyspin.start_acquisition(_SERIALS[cam_num])
-
-    # Get name format, counter, and number of images
-    name_format = _GUI_DICT['name_format_text'].text
-    counter = int(_GUI_DICT['counter_text'].text)
-    num_images = int(_GUI_DICT['num_images_text'].text)
-
-    # Grab number of images
-    for num_image in range(num_images):
-        # Get image dict
-        image_dict = multi_pyspin.get_image(_SERIALS[cam_num], _GET_IMAGE_TIMEOUT)  # Use cutoff to be safe
-
-        # Make sure image is complete
-        if image_dict:
-            # Save image
-            image_name = name_format.format(serial=_SERIALS[cam_num],
-                                            datetime=str(datetime.fromtimestamp(image_dict['timestamp'])),
-                                            cam=cam_num,
-                                            counter=counter+num_image)
-
-            # Remove spaces and dots; for now, only png is supported
-            image_name = image_name.replace(' ', '_').replace('.', '_') + '.png'
-
-            # Save image
-            print('Acquired: ' + image_name)
-            Image.fromarray(image_dict['data'].astype(np.uint32)).save(image_name,
-                                                                       optimize=False,
-                                                                       compress_level=0,
-                                                                       bits=image_dict['bitsperpixel'])
-
-        # Update counter
-        _GUI_DICT['counter_text'].set_val(str(counter+num_images))
-
-    # Set camera back to acquire continuously
-    multi_pyspin.node_cmd(_SERIALS[cam_num],
-                          'AcquisitionMode',
-                          'SetValue',
-                          'RW',
-                          'PySpin.AcquisitionMode_Continuous')
-
-    # Re-enable active streams
-    if _STREAMS[cam_num]:
-        multi_pyspin.start_acquisition(_SERIALS[cam_num])
-
-
-def _save_multi_image():
-    """ Saves multi image """
-
-    # Disable all active streams
-    for cam_num in range(_NUM_CAMS):
-        if _STREAMS[cam_num]:
-            multi_pyspin.end_acquisition(_SERIALS[cam_num])
-
-    # Set all cameras to acquire in single frame
-    for cam_num in range(_NUM_CAMS):
-        multi_pyspin.node_cmd(_SERIALS[cam_num],
-                              'AcquisitionMode',
-                              'SetValue',
-                              'RW',
-                              'PySpin.AcquisitionMode_SingleFrame')
-
-    # Start acquisition, but do first camera last to ensure secondary cameras get triggered
-    for cam_num in range(1, _NUM_CAMS):
-        multi_pyspin.start_acquisition(_SERIALS[cam_num])
-    multi_pyspin.start_acquisition(_SERIALS[0])
-
-    # Get name format, counter, and number of images
-    name_format = _GUI_DICT['name_format_text'].text
-    counter = int(_GUI_DICT['counter_text'].text)
-    num_images = int(_GUI_DICT['num_images_text'].text)
-
-    # Grab number of images
-    for num_image in range(num_images):
-        # Get images in order
-        for cam_num in range(_NUM_CAMS):
-            # Get image dict
-            image_dict = multi_pyspin.get_image(_SERIALS[cam_num], _GET_IMAGE_TIMEOUT)  # Use cutoff to be safe
-
-            # Make sure image is complete
-            if image_dict:
-                # Save image
-                image_name = name_format.format(serial=_SERIALS[cam_num],
-                                                datetime=str(datetime.fromtimestamp(image_dict['timestamp']/1e6)),
-                                                cam=cam_num,
-                                                counter=counter+num_image)
-
-                # Remove spaces and dots; for now, only png is supported
-                image_name = image_name.replace(' ', '_').replace('.', '_') + '.png'
-
-                # Save image
-                print('Acquired: ' + image_name)
-                Image.fromarray(image_dict['data'].astype(np.uint32)).save(image_name,
-                                                                           optimize=False,
-                                                                           compress_level=0,
-                                                                           bits=image_dict['bitsperpixel'])
-
-        # Update counter
-        _GUI_DICT['counter_text'].set_val(str(counter+num_images))
-
-    # Set all cameras back to acquire continuously
-    for cam_num in range(_NUM_CAMS):
-        multi_pyspin.node_cmd(_SERIALS[cam_num],
-                              'AcquisitionMode',
-                              'SetValue',
-                              'RW',
-                              'PySpin.AcquisitionMode_Continuous')
-
-    # Re-enable all active streams
-    for cam_num in range(_NUM_CAMS):
-        if _STREAMS[cam_num]:
-            multi_pyspin.start_acquisition(_SERIALS[cam_num])
 
 
 # -------------- #
@@ -224,14 +89,16 @@ def _message_box_wrapper(func):
 @_message_box_wrapper
 def _num_cams(num_cams):
     """ Handles changing the number of cameras """
-    global _NUM_CAMS, _SERIALS, _STREAMS, _GUI_DICT
+    global _NUM_CAMS, _SERIALS, _STREAMS, _IMSHOW_DICTS, _HIST_DICTS, _GUI_DICT
 
     # Set num cams
     _NUM_CAMS = int(num_cams)
 
-    # Reset camera related lists
-    _SERIALS = [None] * _NUM_CAMS
-    _STREAMS = [False] * _NUM_CAMS
+    # Reset camera related lists; DO NOT do "[{}] * _NUM_CAMS", as this makes a duplicate reference
+    _SERIALS = [None for _ in range(_NUM_CAMS)]
+    _STREAMS = [False for _ in range(_NUM_CAMS)]
+    _IMSHOW_DICTS = [{} for _ in range(_NUM_CAMS)]
+    _HIST_DICTS = [{} for _ in range(_NUM_CAMS)]
 
     # Clear figure
     _FIG.clf()
@@ -253,6 +120,7 @@ def _setup(cam_num):
 
     # Store serial
     _SERIALS[cam_num] = serial
+
 
 @_queue_wrapper
 @_message_box_wrapper
@@ -410,26 +278,138 @@ def _fps_text(cam_num):
 
 @_queue_wrapper
 @_message_box_wrapper
-def _save_primary_images(_=None):
-    """ Save primary image(s) """
+def _save_single_image(cam_num):
+    """ Saves single image """
 
-    _save_images('primary')
+    # Disable active stream
+    if _STREAMS[cam_num]:
+        multi_pyspin.end_acquisition(_SERIALS[cam_num])
+
+    # Set camera to acquire in single frame
+    multi_pyspin.node_cmd(_SERIALS[cam_num],
+                          'AcquisitionMode',
+                          'SetValue',
+                          'RW',
+                          'PySpin.AcquisitionMode_SingleFrame')
+
+    # Start acquisition
+    multi_pyspin.start_acquisition(_SERIALS[cam_num])
+
+    # Get name format, counter, and number of images
+    name_format = _GUI_DICT['name_format_text'].text
+    counter = int(_GUI_DICT['counter_text'].text)
+    num_images = int(_GUI_DICT['num_images_text'].text)
+
+    # Grab number of images
+    for num_image in range(num_images):
+        # Get image dict
+        image_dict = multi_pyspin.get_image(_SERIALS[cam_num], _GET_IMAGE_TIMEOUT)  # Use cutoff to be safe
+
+        # Make sure image is complete
+        if image_dict:
+            # Save image
+            image_name = name_format.format(serial=_SERIALS[cam_num],
+                                            datetime=str(datetime.fromtimestamp(image_dict['timestamp'])),
+                                            cam=cam_num,
+                                            counter=counter+num_image)
+
+            # Remove spaces and dots; for now, only png is supported
+            image_name = image_name.replace(' ', '_').replace('.', '_') + '.png'
+
+            # Save image
+            print('Acquired: ' + image_name)
+            Image.fromarray(image_dict['data'].astype(np.uint32)).save(image_name,
+                                                                       optimize=False,
+                                                                       compress_level=0,
+                                                                       bits=image_dict['bitsperpixel'])
+
+        # Update counter
+        _GUI_DICT['counter_text'].set_val(str(counter+num_images))
+
+    # end acquisition
+    multi_pyspin.end_acquisition(_SERIALS[cam_num])
+
+    # Re-enable active streams
+    if _STREAMS[cam_num]:
+        multi_pyspin.node_cmd(_SERIALS[cam_num],
+                              'AcquisitionMode',
+                              'SetValue',
+                              'RW',
+                              'PySpin.AcquisitionMode_Continuous')
+        multi_pyspin.start_acquisition(_SERIALS[cam_num])
 
 
 @_queue_wrapper
 @_message_box_wrapper
-def _save_secondary_images(_=None):
-    """ Save secondary image(s) """
+def _save_multi_image():
+    """ Saves multi image """
 
-    _save_images('secondary')
+    # Disable all active streams
+    for cam_num in range(_NUM_CAMS):
+        if _STREAMS[cam_num]:
+            multi_pyspin.end_acquisition(_SERIALS[cam_num])
 
+    # Set all cameras to acquire in single frame
+    for cam_num in range(_NUM_CAMS):
+        multi_pyspin.node_cmd(_SERIALS[cam_num],
+                              'AcquisitionMode',
+                              'SetValue',
+                              'RW',
+                              'PySpin.AcquisitionMode_SingleFrame')
 
-@_queue_wrapper
-@_message_box_wrapper
-def _save_multi_images(_=None):
-    """ Save multi image(s) """
+    # Start acquisition, but do first camera last to ensure secondary cameras get triggered
+    for cam_num in range(1, _NUM_CAMS):
+        multi_pyspin.start_acquisition(_SERIALS[cam_num])
+    multi_pyspin.start_acquisition(_SERIALS[0])
 
-    _save_images('multi')
+    # Get name format, counter, and number of images
+    name_format = _GUI_DICT['name_format_text'].text
+    counter = int(_GUI_DICT['counter_text'].text)
+    num_images = int(_GUI_DICT['num_images_text'].text)
+
+    # Grab number of images
+    for num_image in range(num_images):
+        # Get images in order
+        for cam_num in range(_NUM_CAMS):
+            # Get image dict
+            image_dict = multi_pyspin.get_image(_SERIALS[cam_num], _GET_IMAGE_TIMEOUT)  # Use cutoff to be safe
+
+            # Make sure image is complete
+            if image_dict:
+                # Save image
+                image_name = name_format.format(serial=_SERIALS[cam_num],
+                                                datetime=str(datetime.fromtimestamp(image_dict['timestamp']/1e6)),
+                                                cam=cam_num,
+                                                counter=counter+num_image)
+
+                # Remove spaces and dots; for now, only png is supported
+                image_name = image_name.replace(' ', '_').replace('.', '_') + '.png'
+
+                # Save image
+                print('Acquired: ' + image_name)
+                Image.fromarray(image_dict['data'].astype(np.uint32)).save(image_name,
+                                                                           optimize=False,
+                                                                           compress_level=0,
+                                                                           bits=image_dict['bitsperpixel'])
+
+        # Update counter
+        _GUI_DICT['counter_text'].set_val(str(counter+num_images))
+
+    # end acquisition
+    for cam_num in range(_NUM_CAMS):
+        multi_pyspin.end_acquisition(_SERIALS[cam_num])
+
+    # Set all cameras back to acquire continuously
+    for cam_num in range(_NUM_CAMS):
+        if _STREAMS[cam_num]:
+            multi_pyspin.node_cmd(_SERIALS[cam_num],
+                                  'AcquisitionMode',
+                                  'SetValue',
+                                  'RW',
+                                  'PySpin.AcquisitionMode_Continuous')
+
+            multi_pyspin.start_acquisition(_SERIALS[cam_num])
+
 
 # -------------- #
 # GUI            #
@@ -596,7 +576,6 @@ def _multi_fig(fig):
         cam_plot_dict['stop stream_button'].on_clicked(lambda _, i=i: _stop_stream(i))
         cam_plot_dict['gain_slider'].on_changed(lambda _, i=i: _gain_slider(i))
         cam_plot_dict['gain_text'].on_submit(lambda _, i=i: _gain_text(i))
-
         # Append
         cam_plot_dicts.append(cam_plot_dict)
 
@@ -621,8 +600,10 @@ def _multi_fig(fig):
                                              _FPS_MIN,
                                              _FPS_MAX,
                                              _FPS_MIN,
-                                              padding)
+                                             padding)
     # callback
+    fps_slider.on_changed(lambda _, i=i: _fps_slider(i))
+    fps_text.on_submit(lambda _, i=i: _fps_text(i))
 
     # name format
     name_format_pos = [name_format_width + 2*padding,
@@ -633,7 +614,6 @@ def _multi_fig(fig):
     name_format_text = TextBox(name_format_axes, 'Name format')
     name_format_text.label.set_fontsize(7)
     name_format_text.set_val('{serial}_{datetime}_{cam}_{counter}')
-    # callback
 
     # counter
     counter_pos = [name_format_pos[0] + name_format_pos[2] + counter_width + 2*padding,
@@ -644,7 +624,6 @@ def _multi_fig(fig):
     counter_text = TextBox(counter_axes, 'Counter')
     counter_text.label.set_fontsize(7)
     counter_text.set_val(1)
-    # callback
 
     # save buttons
     save_buttons = []
@@ -657,9 +636,10 @@ def _multi_fig(fig):
         save_button_axes = fig.add_axes(save_button_pos)
         save_button = Button(save_button_axes, 'Save Cam "' + str(i+1) + '"')
         save_button.label.set_fontsize(7)
+        # callback
+        save_button.on_clicked(lambda _, i=i: _save_single_image(i))
         # Append
         save_buttons.append(save_button)
-        # callback
 
     # multi save button
     save_button_pos = [_NUM_CAMS*save_width + (_NUM_CAMS+1)*padding,
@@ -669,9 +649,10 @@ def _multi_fig(fig):
     save_button_axes = fig.add_axes(save_button_pos)
     save_button = Button(save_button_axes, 'Save Multi')
     save_button.label.set_fontsize(7)
+    # callback
+    save_button.on_clicked(lambda _: _save_multi_image())
     # Append
     save_buttons.append(save_button)
-    # callback
 
     # num images text
     num_images_text_pos = [save_button_pos[0] + save_button_pos[2] + num_images_width + 2*padding,
@@ -682,8 +663,6 @@ def _multi_fig(fig):
     num_images_text = TextBox(num_images_text_axes, '# Images')
     num_images_text.label.set_fontsize(7)
     num_images_text.set_val(1)
-    # callback
-
 
     return {'num_cams_text': num_cams_text,
             'cam_plot_dicts': cam_plot_dicts,
@@ -706,7 +685,7 @@ def _plot_image(image, max_val, image_axes, imshow_dict):
     """ plots image somewhat fast """
 
     # If image size changes or max val changes, then we must replot imshow
-    if image.shape != imshow_dict['imshow_size'] or max_val != imshow_dict['max_val']:
+    if not imshow_dict or (image.shape != imshow_dict['imshow_size'] or max_val != imshow_dict['max_val']):
         # Must reset axes and re-imshow()
         image_axes.cla()
         imshow_dict['imshow'] = image_axes.imshow(image, cmap='gray', vmin=0, vmax=max_val)
@@ -731,7 +710,7 @@ def _plot_hist(image, max_val, hist_axes, hist_dict):
     hist, bins = np.histogram(image.ravel(), normed=True, bins=num_bins, range=(0, max_val))
 
     # If histogram hasn't been plotted yet or max val changes, then we must replot histogram
-    if hist_dict['bar'] is None or hist_dict['max_val'] != max_val:
+    if not hist_dict or (hist_dict['bar'] is None or hist_dict['max_val'] != max_val):
         # Must reset axes and plot hist
         hist_axes.cla()
         hist_dict['bar'] = hist_axes.bar(bins[:-1], hist, color='k', width=(max_val+1)/num_bins)
@@ -764,35 +743,25 @@ def _plot_image_and_hist(image, max_val, image_axes, imshow_dict, hist_axes, his
 @_message_box_wrapper
 def _stream_images():
     """ stream update of images """
-    global _IMSHOW_PRIMARY_DICT, _IMSHOW_SECONDARY_DICT
-    global _HIST_PRIMARY_DICT, _HIST_SECONDARY_DICT
 
-    try:
-        # Get image dicts - Must acquire primary image first in case there is a hardware trigger!
-        image_primary_dict = multi_pyspin.get_image_primary()
-        image_secondary_dict = multi_pyspin.get_image_secondary()
+    for cam_num in range(_NUM_CAMS):
+        if _STREAMS[cam_num]:
+            # Get image dict
+            image_dict = multi_pyspin.get_image(_SERIALS[cam_num], _GET_IMAGE_TIMEOUT)
 
-        # Make sure images are complete
-        if 'data' in image_primary_dict and 'data' in image_secondary_dict:
-            # Plot primary image and histogram
-            _IMSHOW_PRIMARY_DICT, _HIST_PRIMARY_DICT = _plot_image_and_hist(image_primary_dict['data'],
-                                                                               2**image_primary_dict['bitsperpixel']-1,
-                                                                               _GUI_DICT['cam_plot_primary_dict']['image_axes'],
-                                                                               _IMSHOW_PRIMARY_DICT,
-                                                                               _GUI_DICT['cam_plot_primary_dict']['hist_axes'],
-                                                                               _HIST_PRIMARY_DICT)
+            # Make sure image is complete
+            if image_dict:
+                # Plot image and histogram
+                _IMSHOW_DICT, _HIST_DICT = _plot_image_and_hist(image_dict['data'],
+                                                                2**image_dict['bitsperpixel']-1,
+                                                                _GUI_DICT['cam_plot_dicts'][cam_num]['image_axes'],
+                                                                _IMSHOW_DICTS[cam_num],
+                                                                _GUI_DICT['cam_plot_dicts'][cam_num]['hist_axes'],
+                                                                _HIST_DICTS[cam_num])
 
-            # Plot secondary image and histogram
-            _IMSHOW_SECONDARY_DICT, _HIST_SECONDARY_DICT = _plot_image_and_hist(image_secondary_dict['data'],
-                                                                                2**image_secondary_dict['bitsperpixel']-1,
-                                                                                _GUI_DICT['cam_plot_secondary_dict']['image_axes'],
-                                                                                _IMSHOW_SECONDARY_DICT,
-                                                                                _GUI_DICT['cam_plot_secondary_dict']['hist_axes'],
-                                                                                _HIST_SECONDARY_DICT)
-    except:
-        if _STREAMS:
-            # Only re-raise error if stream is still enabled
-            raise
+                # Store
+                _IMSHOW_DICTS[cam_num] = _IMSHOW_DICT
+                _HIST_DICTS[cam_num] = _HIST_DICT
 
 
 # -------------- #
@@ -805,8 +774,6 @@ def main():
     global _FIG
     global _QUEUE
     global _STREAMS
-    global _IMSHOW_PRIMARY_DICT, _IMSHOW_SECONDARY_DICT
-    global _HIST_PRIMARY_DICT, _HIST_SECONDARY_DICT
     global _GUI_DICT
 
     # Create figure
@@ -818,10 +785,9 @@ def main():
     # Update plot while figure exists
     while plt.fignum_exists(_FIG.number):
         try:
-            # # Handle streams
-            # if _STREAMS:
-            #     _stream_images()
-            #
+            # Handle streams
+            _stream_images()
+
             # Handle queue
             while not _QUEUE.empty():
                 func, args, kwargs = _QUEUE.get()

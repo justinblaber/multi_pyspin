@@ -29,7 +29,7 @@ _SYSTEM_EVENT_HANDLER = None
 
 # Maintain dictionary which keeps correspondences between camera serial and camera stuff (camera object, timestamp
 # offset, etc...)
-_CAM_DICT = {}
+_SERIAL_DICT = {}
 
 # Set number of iterations used to compute timestamp offset
 _TIMESTAMP_OFFSET_ITERATIONS = 20
@@ -40,41 +40,41 @@ _TIMESTAMP_OFFSET_ITERATIONS = 20
 # ------------------- #
 
 
-def _node_cmd(cam, cam_attr_str, cam_method_str, pyspin_mode_str=None, cam_method_arg=None):
-    """ Performs method on input cam attribute with optional access mode check """
+def _node_cmd(cam, cam_node_str, cam_method_str, pyspin_mode_str=None, cam_node_arg=None):
+    """ Performs method on input cam node with optional access mode check """
 
     # Print command info
-    info_str = cam.GetUniqueID() + ' - executing: "' + '.'.join([cam_attr_str, cam_method_str]) + '('
-    if cam_method_arg is not None:
-        info_str += str(cam_method_arg)
+    info_str = cam.GetUniqueID() + ' - executing: "' + '.'.join([cam_node_str, cam_method_str]) + '('
+    if cam_node_arg is not None:
+        info_str += str(cam_node_arg)
     print(info_str + ')"')
 
-    # Get camera attribute
-    cam_attr = cam
-    cam_attr_str_split = cam_attr_str.split('.')
-    for sub_cam_attr_str in cam_attr_str_split:
-        cam_attr = getattr(cam_attr, sub_cam_attr_str)
+    # Get camera node
+    cam_node = cam
+    cam_node_str_split = cam_node_str.split('.')
+    for sub_cam_node_str in cam_node_str_split:
+        cam_node = getattr(cam_node, sub_cam_node_str)
 
     # Perform optional access mode check
     if pyspin_mode_str is not None:
-        if cam_attr.GetAccessMode() != getattr(PySpin, pyspin_mode_str):
-            raise RuntimeError('Access mode check failed for: "' + cam_attr_str + '" with mode: "' +
+        if cam_node.GetAccessMode() != getattr(PySpin, pyspin_mode_str):
+            raise RuntimeError('Access mode check failed for: "' + cam_node_str + '" with mode: "' +
                                pyspin_mode_str + '".')
 
     # Format command argument in case it's a string containing a PySpin attribute
-    if isinstance(cam_method_arg, str):
-        cam_method_arg_split = cam_method_arg.split('.')
-        if cam_method_arg_split[0] == 'PySpin':
-            if len(cam_method_arg_split) == 2:
-                cam_method_arg = getattr(PySpin, cam_method_arg_split[1])
+    if isinstance(cam_node_arg, str):
+        cam_node_arg_split = cam_node_arg.split('.')
+        if cam_node_arg_split[0] == 'PySpin':
+            if len(cam_node_arg_split) == 2:
+                cam_node_arg = getattr(PySpin, cam_node_arg_split[1])
             else:
-                raise RuntimeError('Arguments containing nested PySpin arguments are currently not supported...')
+                raise RuntimeError('Arguments containing nested PySpin attributes are currently not supported...')
 
     # Perform command
-    if cam_method_arg is None:
-        return getattr(cam_attr, cam_method_str)()
+    if cam_node_arg is None:
+        return getattr(cam_node, cam_method_str)()
     else:
-        return getattr(cam_attr, cam_method_str)(cam_method_arg)
+        return getattr(cam_node, cam_method_str)(cam_node_arg)
 
 
 def _setup(cam, yaml_path):
@@ -97,49 +97,47 @@ def _setup(cam, yaml_path):
         if isinstance(yaml_dict, dict) and 'init' in yaml_dict:
             node_cmd_dicts = yaml_dict['init']
 
-    # Perform init commands if they are provided
+    # Perform node commands if they are provided
     if isinstance(node_cmd_dicts, list):
         # Iterate over commands
         for node_cmd_dict in node_cmd_dicts:
-            # Get camera attribute string
             if isinstance(node_cmd_dict, dict):
-                cam_attr_str = list(node_cmd_dict.keys())
-                if len(cam_attr_str) == 1:
-                    cam_attr_str = cam_attr_str[0]
+                # Get camera node string
+                cam_node_str = list(node_cmd_dict.keys())
+                if len(cam_node_str) == 1:
+                    cam_node_str = cam_node_str[0]
 
                     # NOTE: I believe there should only be SetValue()'s and Execute()'s with RW access mode for
                     # initialization of camera (read only doesn't make sense and the write onlys that I've seen are
                     # mainly for rebooting the camera, which isn't necessary). If this is not the case, then the method
                     # and/or access mode(s) will need to be added to the yaml file.
 
-                    # Get method argument (if it exists)
-                    cam_method_arg = None
-                    cam_method_dict = node_cmd_dict[cam_attr_str]
-                    if isinstance(cam_method_dict, dict):
-                        # Get method argument
-                        if 'value' in cam_method_dict:
-                            cam_method_arg = cam_method_dict['value']
+                    # Get node argument (if it exists)
+                    cam_node_arg = None
+                    cam_node_dict = node_cmd_dict[cam_node_str]
+                    if isinstance(cam_node_dict, dict) and 'value' in cam_node_dict:
+                        cam_node_arg = cam_node_dict['value']
 
                     # Get method
-                    if cam_method_arg is not None:
+                    if cam_node_arg is not None:
                         # Assume this is a SetValue()
                         cam_method_str = 'SetValue'
                     else:
                         # Assume this is an Execute()
                         cam_method_str = 'Execute'
 
-                    # Get mode
+                    # Get mode - Assume this is RW
                     pyspin_mode_str = 'RW'
 
                     # Perform command
                     _node_cmd(cam,
-                              cam_attr_str,
+                              cam_node_str,
                               cam_method_str,
                               pyspin_mode_str,
-                              cam_method_arg)
+                              cam_node_arg)
                 else:
-                    raise RuntimeError('Only one camera attribute per yaml "tick" is supported. '
-                                       'Please fix: ' + str(cam_attr_str))
+                    raise RuntimeError('Only one camera node per yaml "tick" is supported. '
+                                       'Please fix: ' + str(cam_node_str))
 
 
 def _compute_timestamp_offset(cam, timestamp_offset_iterations):
@@ -225,7 +223,7 @@ def _validate_cam_streaming(cam, serial):
 def _validate_serial(serial):
     """ Checks to see if serial is valid """
 
-    if serial not in _CAM_DICT:
+    if serial not in _SERIAL_DICT:
         raise RuntimeError('Camera "' + serial + '" not valid, please connect or reconnect!')
 
 
@@ -242,7 +240,7 @@ def _handle_cam_arrival(serial):
     timestamp_offset = _compute_timestamp_offset(cam, _TIMESTAMP_OFFSET_ITERATIONS)
 
     # Add cam stuff to dict
-    _CAM_DICT[serial] = {'cam': cam, 'timestamp_offset': timestamp_offset}
+    _SERIAL_DICT[serial] = {'cam': cam, 'timestamp_offset': timestamp_offset}
 
 
 def _handle_cam_removal(serial):
@@ -251,7 +249,7 @@ def _handle_cam_removal(serial):
     print(serial + ' - removed')
 
     # Remove cam stuff from dict
-    _CAM_DICT.pop(serial, None)
+    _SERIAL_DICT.pop(serial, None)
 
 
 def _get_cam(serial):
@@ -259,7 +257,7 @@ def _get_cam(serial):
 
     _validate_serial(serial)
 
-    return _CAM_DICT[serial]['cam']
+    return _SERIAL_DICT[serial]['cam']
 
 
 def _get_timestamp_offset(serial):
@@ -267,7 +265,7 @@ def _get_timestamp_offset(serial):
 
     _validate_serial(serial)
 
-    return _CAM_DICT[serial]['timestamp_offset']
+    return _SERIAL_DICT[serial]['timestamp_offset']
 
 
 def _get_and_validate_cam(serial):
@@ -388,17 +386,17 @@ def get_image(serial, *args):
                       *args)
 
 
-def node_cmd(serial, cam_attr_str, cam_method_str, pyspin_mode_str=None, cam_method_arg=None):
-    """ Performs method on input cam attribute with optional access mode check """
+def node_cmd(serial, cam_node_str, cam_method_str, pyspin_mode_str=None, cam_node_arg=None):
+    """ Performs method on input cam node with optional access mode check """
 
     # This function allows running node commands without explicitly accessing the camera object, which is nice as the
     # caller doesn't need to worry about handling/clearing cam objects
 
     return _node_cmd(_get_and_validate_init_cam(serial),
-                     cam_attr_str,
+                     cam_node_str,
                      cam_method_str,
                      pyspin_mode_str,
-                     cam_method_arg)
+                     cam_node_arg)
 
 
 def update_timestamp_offset(serial):
@@ -409,8 +407,8 @@ def update_timestamp_offset(serial):
 
     _validate_serial(serial)
 
-    _CAM_DICT[serial]['timestamp_offset'] = _compute_timestamp_offset(_get_and_validate_init_cam(serial),
-                                                                      _TIMESTAMP_OFFSET_ITERATIONS)
+    _SERIAL_DICT[serial]['timestamp_offset'] = _compute_timestamp_offset(_get_and_validate_init_cam(serial),
+                                                                         _TIMESTAMP_OFFSET_ITERATIONS)
 
 
 # --------------------#
@@ -432,7 +430,7 @@ class _SystemEventHandler(PySpin.InterfaceEvent):
 
 
 def _constructor():
-    global _SYSTEM, _SYSTEM_EVENT_HANDLER, _CAM_DICT
+    global _SYSTEM, _SYSTEM_EVENT_HANDLER, _SERIAL_DICT
 
     # Set system
     _SYSTEM = PySpin.System.GetInstance()
@@ -466,7 +464,7 @@ def _destructor():
     print('Cleaning up multi_pyspin...')
 
     # Clean up cameras
-    for serial in list(_CAM_DICT):  # Use list() to cache since stuff is getting removed from dictionary in loop
+    for serial in list(_SERIAL_DICT):  # Use list() to cache since stuff is getting removed from dictionary in loop
         # End acquisition
         with suppress(Exception):
             end_acquisition(serial)
@@ -476,7 +474,7 @@ def _destructor():
             deinit(serial)
 
         # Clear camera stuff
-        _CAM_DICT.pop(serial, None)
+        _SERIAL_DICT.pop(serial, None)
 
     # Debug output if system is still in use some how
     if _SYSTEM.IsInUse():
