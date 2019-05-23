@@ -8,8 +8,6 @@ init:
         value: PySpin.TriggerMode_Off
     - TriggerSource: 
         value: PySpin.TriggerSource_Line3
-    - TriggerSelector:
-        value: PySpin.TriggerSelector_FrameStart
     - TriggerOverlap: 
         value: PySpin.TriggerOverlap_ReadOut
     - TriggerMode:
@@ -17,7 +15,7 @@ init:
     - AcquisitionFrameRateEnable:
         value: True
     - AcquisitionFrameRate:
-        value: 10
+        value: 5
     - ExposureMode:
         value: PySpin.ExposureMode_Timed
     - ExposureAuto:

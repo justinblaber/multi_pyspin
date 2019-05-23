@@ -11,7 +11,7 @@ init:
     - AcquisitionFrameRateEnable:
         value: True
     - AcquisitionFrameRate:
-        value: 10
+        value: 5
     - ExposureMode:
         value: PySpin.ExposureMode_Timed
     - ExposureAuto:
@@ -23,7 +23,7 @@ init:
     - GainAuto:
         value: PySpin.GainAuto_Off
     - Gain:
-        value: 0
+        value: 40
     - BlackLevelSelector:
         value: PySpin.BlackLevelSelector_All
     - BlackLevel:

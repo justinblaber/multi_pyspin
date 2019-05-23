@@ -151,28 +151,23 @@ def _compute_timestamp_offset(cam, timestamp_offset_iterations):
     for i in range(timestamp_offset_iterations):
         # Latch timestamp. This basically "freezes" the current camera timer into a variable that can be read with
         # TimestampLatchValue()
-        cam.TimestampLatch()
+        cam.TimestampLatch.Execute()
 
         # Compute timestamp offset in seconds; note that timestamp latch value is in nanoseconds
-        timestamp_offset = datetime.now().timestamp() - cam.TimestampLatchValue()/1e9
+        timestamp_offset = datetime.now().timestamp() - cam.TimestampLatchValue.GetValue()/1e9
 
         # Append
         timestamp_offsets.append(timestamp_offset)
 
-    # Get the median value
-    timestamp_offset = statistics.median(timestamp_offsets)
-
-    # Print timestamp offset
-    print(cam.GetUniqueID() + ' - computed timestamp offset: ' + str(timestamp_offset))
-
-    return timestamp_offset
+    # Return the median value
+    return statistics.median(timestamp_offsets)
 
 
 def _get_image(cam, timestamp_offset, *args):
-    """ Gets image (and other info) from input camera """
+    """ Gets image (and other info) from input camera; CALLER MUST EXPLICITLY RELEASE IMAGE! """
 
-    # Get image object
-    image = cam.GetNextImage(*args)  # args is most likely just a timeout in case hardware trigger is set
+    # Get image
+    image = cam.GetNextImage(*args)  # args is most likely a timeout in case trigger is set
 
     # Initialize image dict
     image_dict = {}
@@ -180,12 +175,10 @@ def _get_image(cam, timestamp_offset, *args):
     # Ensure image is complete
     if not image.IsIncomplete():
         # Get data/metadata
-        image_dict['data'] = image.GetNDArray()                                 # numpy array
+        image_dict['image'] = image                                             # image
         image_dict['timestamp'] = timestamp_offset + image.GetTimeStamp()/1e9   # timestamp in seconds
         image_dict['bitsperpixel'] = image.GetBitsPerPixel()                    # bits per pixel
         image_dict['frameid'] = image.GetFrameID()                              # frame id
-
-    # PySpin image goes out of scope here, so no need to explicitly release the image
 
     return image_dict
 
@@ -273,6 +266,7 @@ def _get_and_validate_cam(serial):
 
     cam = _get_cam(serial)
     _validate_cam(cam, serial)
+
     return cam
 
 
@@ -281,6 +275,7 @@ def _get_and_validate_init_cam(serial):
 
     cam = _get_cam(serial)
     _validate_cam_init(cam, serial)
+
     return cam
 
 
@@ -289,6 +284,7 @@ def _get_and_validate_streaming_cam(serial):
 
     cam = _get_cam(serial)
     _validate_cam_streaming(cam, serial)
+
     return cam
 
 
@@ -379,8 +375,6 @@ def end_acquisition(serial):
 def get_image(serial, *args):
     """ Gets image from camera """
 
-    # TODO: test speed of this function; make sure it can hit max FPS. If not, maybe add option to skip some validation
-
     return _get_image(_get_and_validate_streaming_cam(serial),
                       _get_timestamp_offset(serial),
                       *args)
@@ -412,7 +406,7 @@ def update_timestamp_offset(serial):
 
 
 # --------------------#
-# "constructor"       #
+# Event handler       #
 # ------------------- #
 
 
@@ -427,6 +421,11 @@ class _SystemEventHandler(PySpin.InterfaceEvent):
 
     def OnDeviceRemoval(self, serial):
         _handle_cam_removal(str(serial))
+
+
+# --------------------#
+# "constructor"       #
+# ------------------- #
 
 
 def _constructor():
