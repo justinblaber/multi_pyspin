@@ -15,6 +15,7 @@ from datetime import datetime
 from contextlib import suppress
 
 import yaml
+
 import PySpin
 
 
@@ -164,7 +165,7 @@ def _compute_timestamp_offset(cam, timestamp_offset_iterations):
 
 
 def _get_image(cam, timestamp_offset, *args):
-    """ Gets image (and other info) from input camera; CALLER MUST EXPLICITLY RELEASE IMAGE! """
+    """ Gets image (and other info) from input camera; caller should release image """
 
     # Get image
     image = cam.GetNextImage(*args)  # args is most likely a timeout in case trigger is set
