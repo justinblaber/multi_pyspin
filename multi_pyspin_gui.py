@@ -419,36 +419,6 @@ def _plot_hist(image, max_val, num_bins, hist_axes, hist_dict):
 # ------------------- #
 
 
-def _set_multi_fig_callbacks():
-    """ Sets multi fig callbacks """
-
-    # num cams
-    _GUI_DICT['num_cams_button'].on_clicked(lambda _: _num_cams_wrapped())
-
-    # cam plots
-    for i in range(len(_GUI_DICT['cam_plot_dicts'])):
-        _GUI_DICT['cam_plot_dicts'][i]['setup_button'].on_clicked(lambda _, i=i: _setup_wrapped(i))
-        _GUI_DICT['cam_plot_dicts'][i]['start_stream_button'].on_clicked(lambda _, i=i: _start_stream_wrapped(i))
-        _GUI_DICT['cam_plot_dicts'][i]['stop_stream_button'].on_clicked(lambda _, i=i: _stop_stream_wrapped(i))
-        _GUI_DICT['cam_plot_dicts'][i]['gain_slider'].on_changed(lambda _, i=i: _gain_slider_wrapped(i))
-        _GUI_DICT['cam_plot_dicts'][i]['gain_text'].on_submit(lambda _, i=i: _gain_text_wrapped(i))
-
-    # exposure
-    _GUI_DICT['exposure_slider'].on_changed(lambda _: _exposure_slider_wrapped())
-    _GUI_DICT['exposure_text'].on_submit(lambda _: _exposure_text_wrapped())
-
-    # fps
-    _GUI_DICT['fps_slider'].on_changed(lambda _: _fps_slider_wrapped())
-    _GUI_DICT['fps_text'].on_submit(lambda _: _fps_text_wrapped())
-
-    # save cam buttons
-    for i in range(len(_GUI_DICT['save_cam_buttons'])):
-        _GUI_DICT['save_cam_buttons'][i].on_clicked(lambda _, i=i: _save_single_image_wrapped(i))
-
-    # save multi button
-    _GUI_DICT['save_multi_button'].on_clicked(lambda _: _save_multi_image_wrapped())
-
-
 def _get_and_validate_serial(cam_num):
     """ Validates serial then returns it """
 
@@ -747,9 +717,9 @@ def _save_images(cam_nums):
             _start_stream(cam_num)
 
 
-# -------------- #
-# Wrappers       #
-# -------------- #
+# ------------------- #
+# Wrapped stuff       #
+# ------------------- #
 
 
 def _queue_wrapper(func):
@@ -764,28 +734,7 @@ def _queue_wrapper(func):
     return _wrapped_func
 
 
-def _message_box_wrapper(func):
-    """ wraps function in try/except and pops up message box with exception """
-
-    @functools.wraps(func)
-    def _wrapped_func(*args, **kwargs):
-        """ wrapped function """
-
-        try:
-            func(*args, **kwargs)
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
-
-    return _wrapped_func
-
-
-# -------------- #
-# Wrapped        #
-# -------------- #
-
-
 @_queue_wrapper
-@_message_box_wrapper
 def _num_cams_wrapped():
     """ Handles changing the number of cameras """
     global _NUM_CAMS, _SERIALS, _STREAMS, _IMSHOW_DICTS, _HIST_DICTS, _GUI_DICT
@@ -834,7 +783,6 @@ def _num_cams_wrapped():
 
 
 @_queue_wrapper
-@_message_box_wrapper
 def _setup_wrapped(cam_num_new):
     """ Sets up camera """
 
@@ -893,7 +841,6 @@ def _setup_wrapped(cam_num_new):
 
 
 @_queue_wrapper
-@_message_box_wrapper
 def _start_stream_wrapped(cam_num):
     """ Starts stream of camera """
 
@@ -901,7 +848,6 @@ def _start_stream_wrapped(cam_num):
 
 
 @_queue_wrapper
-@_message_box_wrapper
 def _stop_stream_wrapped(cam_num):
     """ Stops stream of camera """
 
@@ -909,7 +855,6 @@ def _stop_stream_wrapped(cam_num):
 
 
 @_queue_wrapper
-@_message_box_wrapper
 def _gain_slider_wrapped(cam_num):
     """ gain slider callback """
 
@@ -935,7 +880,6 @@ def _gain_slider_wrapped(cam_num):
 
 
 @_queue_wrapper
-@_message_box_wrapper
 def _gain_text_wrapped(cam_num):
     """ gain text callback """
 
@@ -960,7 +904,6 @@ def _gain_text_wrapped(cam_num):
 
 
 @_queue_wrapper
-@_message_box_wrapper
 def _exposure_slider_wrapped():
     """ exposure slider callback """
 
@@ -984,7 +927,6 @@ def _exposure_slider_wrapped():
 
 
 @_queue_wrapper
-@_message_box_wrapper
 def _exposure_text_wrapped():
     """ exposure text callback """
 
@@ -1008,7 +950,6 @@ def _exposure_text_wrapped():
 
 
 @_queue_wrapper
-@_message_box_wrapper
 def _fps_slider_wrapped():
     """ fps slider callback """
 
@@ -1032,7 +973,6 @@ def _fps_slider_wrapped():
 
 
 @_queue_wrapper
-@_message_box_wrapper
 def _fps_text_wrapped():
     """ fps text callback """
 
@@ -1056,7 +996,6 @@ def _fps_text_wrapped():
 
 
 @_queue_wrapper
-@_message_box_wrapper
 def _save_single_image_wrapped(cam_num):
     """ Saves single image """
 
@@ -1064,17 +1003,15 @@ def _save_single_image_wrapped(cam_num):
 
 
 @_queue_wrapper
-@_message_box_wrapper
 def _save_multi_image_wrapped():
     """ Saves multi image """
 
-    # Set primary camera last; this ensures secondary cameras begin acquisition before the primary camera, in case a
-    # trigger is set on the secondary cameras.
+    # Set primary camera last (assumed to be first camera); this ensures secondary cameras begin acquisition before the
+    # primary camera, in case a trigger is set on the secondary cameras.
     _save_images(list(range(1, _NUM_CAMS)) + [0])
 
 
 @_queue_wrapper
-@_message_box_wrapper
 def _stream_images_wrapped():
     """ stream update of images """
 
@@ -1118,6 +1055,43 @@ def _stream_images_wrapped():
 
 
 # ------------------- #
+# Set callbacks       #
+# ------------------- #
+
+
+def _set_multi_fig_callbacks():
+    """ Sets multi fig callbacks """
+
+    # All callbacks are wrapped so they get inserted into a queue first before running
+
+    # num cams
+    _GUI_DICT['num_cams_button'].on_clicked(lambda _: _num_cams_wrapped())
+
+    # cam plots
+    for i in range(len(_GUI_DICT['cam_plot_dicts'])):
+        _GUI_DICT['cam_plot_dicts'][i]['setup_button'].on_clicked(lambda _, i=i: _setup_wrapped(i))
+        _GUI_DICT['cam_plot_dicts'][i]['start_stream_button'].on_clicked(lambda _, i=i: _start_stream_wrapped(i))
+        _GUI_DICT['cam_plot_dicts'][i]['stop_stream_button'].on_clicked(lambda _, i=i: _stop_stream_wrapped(i))
+        _GUI_DICT['cam_plot_dicts'][i]['gain_slider'].on_changed(lambda _, i=i: _gain_slider_wrapped(i))
+        _GUI_DICT['cam_plot_dicts'][i]['gain_text'].on_submit(lambda _, i=i: _gain_text_wrapped(i))
+
+    # exposure
+    _GUI_DICT['exposure_slider'].on_changed(lambda _: _exposure_slider_wrapped())
+    _GUI_DICT['exposure_text'].on_submit(lambda _: _exposure_text_wrapped())
+
+    # fps
+    _GUI_DICT['fps_slider'].on_changed(lambda _: _fps_slider_wrapped())
+    _GUI_DICT['fps_text'].on_submit(lambda _: _fps_text_wrapped())
+
+    # save cam buttons
+    for i in range(len(_GUI_DICT['save_cam_buttons'])):
+        _GUI_DICT['save_cam_buttons'][i].on_clicked(lambda _, i=i: _save_single_image_wrapped(i))
+
+    # save multi button
+    _GUI_DICT['save_multi_button'].on_clicked(lambda _: _save_multi_image_wrapped())
+
+
+# ------------------- #
 # "public" methods    #
 # ------------------- #
 
@@ -1154,7 +1128,12 @@ def main():
         # Handle queue
         while not _QUEUE.empty():
             func, args, kwargs = _QUEUE.get()
-            func(*args, **kwargs)
+
+            # Attempt to run function, if it fails, display an error message box and continue
+            try:
+                func(*args, **kwargs)
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
 
             # Update fig
             _update_fig(_FIG)

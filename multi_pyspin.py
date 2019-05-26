@@ -144,7 +144,7 @@ def _setup(cam, yaml_path):
 def _compute_timestamp_offset(cam, timestamp_offset_iterations):
     """ Gets timestamp offset in seconds from input camera """
 
-    # This method is required because the timestamp stored on the camera is relative to when it was powered on, so an
+    # This method is required because the timestamp stored in the camera is relative to when it was powered on, so an
     # offset needs to be applied to get it into epoch time; from tests I've done, this appears to be accurate to ~1e-3
     # seconds.
 
@@ -165,7 +165,7 @@ def _compute_timestamp_offset(cam, timestamp_offset_iterations):
 
 
 def _get_image(cam, timestamp_offset, *args):
-    """ Gets image (and other info) from input camera; caller should release image """
+    """ Gets image (and other info) from input camera; caller should handle releasing the image """
 
     # Get image
     image = cam.GetNextImage(*args)  # args is most likely a timeout in case trigger is set
