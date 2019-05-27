@@ -1,9 +1,9 @@
-# stereo_pyspin
-A simple stereo camera library using PySpin.
+# multi_pyspin
+A simple multi camera library using PySpin.
 
 # Installation and User Guide (Spinnaker USB cameras on Linux)
 
-1) Increase USB file system memory. There are two ways:
+1) Increase USB file system memory. In this case, I've set it to 16gb (16000 mb). Please update the number to whatever you think is appropriate for your machine. There are two ways:
 
    #### Permanent way:
 
@@ -13,7 +13,7 @@ A simple stereo camera library using PySpin.
     
       with this:
    
-      `GRUB_CMDLINE_LINUX_DEFAULT="quiet splash usbcore.usbfs_memory_mb=1000"`
+      `GRUB_CMDLINE_LINUX_DEFAULT="quiet splash usbcore.usbfs_memory_mb=16000"`
 
    2. Update grub with these settings:
 
@@ -25,21 +25,22 @@ A simple stereo camera library using PySpin.
 
    1. Run the following command:
 
-      `sudo sh -c 'echo 1000 > /sys/module/usbcore/parameters/usbfs_memory_mb'`
+      `sudo sh -c 'echo 16000 > /sys/module/usbcore/parameters/usbfs_memory_mb'`
 
 2) After doing either the permanent or temporary way, confirm that you have successfully updated the memory limit by running the following command:
 
    `cat /sys/module/usbcore/parameters/usbfs_memory_mb`
    
-   The output should be 1000.
+   The output should be 16000.
    
 3) Configure udev rules to allow access to USB devices:
    
    ```
    cd /tmp
-   wget https://github.com/justinblaber/stereo_pyspin/blob/master/spinnaker-1.10.0.31-amd64.tar.gz?raw=true -O spinnaker-1.10.0.31-amd64.tar.gz
-   tar xvfz spinnaker-1.10.0.31-amd64.tar.gz
-   sudo sh spinnaker-1.10.0.31-amd64/spin-conf
+   wget https://github.com/justinblaber/multi_pyspin/blob/master/spinnaker-1.21.0.61-amd64-Ubuntu18.04-pkg.tar.gz?raw=true -O spinnaker-1.21.0.61-amd64-Ubuntu18.04-pkg.tar.gz
+   tar xvfz spinnaker-1.21.0.61-amd64-Ubuntu18.04-pkg.tar.gz
+   cd spinnaker-1.21.0.61-amd64
+   sudo sh spin-conf
    ```
 
 4) [Install singularity](https://singularity.lbl.gov/install-linux)
@@ -47,9 +48,9 @@ A simple stereo camera library using PySpin.
 5) Download singularity image:
 
    ```
-   mkdir -p ~/stereo_pyspin
-   cd ~/stereo_pyspin
-   singularity pull --name stereo_pyspin.img shub://justinblaber/stereo_pyspin
+   mkdir -p ~/multi_pyspin
+   cd ~/multi_pyspin
+   singularity pull --name multi_pyspin.img shub://justinblaber/multi_pyspin
    ```
 
 6) Set up acquisition folder and copy YAML configurations for each camera into it:
@@ -65,7 +66,7 @@ A simple stereo camera library using PySpin.
    
 7) Run the singularity image:
 
-   `singularity run ~/stereo_pyspin/stereo_pyspin.img`
+   `~/multi_pyspin/multi_pyspin.img`
    
    A gui should appear like so:
 
