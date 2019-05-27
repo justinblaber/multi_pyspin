@@ -50,33 +50,22 @@ A simple multi camera library using PySpin.
    ```
    mkdir -p ~/multi_pyspin
    cd ~/multi_pyspin
-   singularity pull --name multi_pyspin.img shub://justinblaber/multi_pyspin
+   singularity pull --name multi_pyspin.simg shub://justinblaber/multi_pyspin
    ```
+ 
+6) Run the singularity image:
 
-6) Set up acquisition folder and copy YAML configurations for each camera into it:
-
-   ```
-   mkdir -p ~/Desktop/stereo_pyspin_test
-   cd ~/Desktop/stereo_pyspin_test
-   wget https://raw.githubusercontent.com/justinblaber/stereo_pyspin/master/primary.yaml
-   wget https://raw.githubusercontent.com/justinblaber/stereo_pyspin/master/secondary.yaml
-   ```
-   
-   Make sure to modify `primary.yaml` and `secondary.yaml` to set the serial numbers and do the appropriate camera initializations.
-   
-7) Run the singularity image:
-
-   `~/multi_pyspin/multi_pyspin.img`
+   `~/multi_pyspin/multi_pyspin.simg`
    
    A gui should appear like so:
 
    ![alt text](https://i.imgur.com/0XrLia4.png)
    
-8) Find and initialize both primary and secondary cameras, then start the stream. If successful, the gui should look like:
+7) Find and initialize both primary and secondary cameras, then start the stream. If successful, the gui should look like:
 
    ![alt text](https://i.imgur.com/16Njddo.png)
    
-9) After the stream is started, you can save images:
+8) After the stream is started, you can save images:
 
    `16276941_2018-07-10_02:04:23_916915_1_L.png`:
     ![alt text](https://i.imgur.com/6IbZG1K.jpg)
