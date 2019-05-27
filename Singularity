@@ -1,2 +1,2 @@
 Bootstrap: docker
-From: justinblaber/stereo_pyspin
+From: justinblaber/multi_pyspin

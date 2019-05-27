@@ -1,6 +1,9 @@
 # This install is for ubuntu 18.04 and python 3.6
 FROM ubuntu:18.04
 
+# Disable interactive dialogue with dpkg
+ENV DEBIAN_FRONTEND noninteractive
+
 # Update
 RUN apt-get -y update
 
@@ -19,8 +22,7 @@ RUN mkdir /extra && \
     rm BFS-U3-32S4_1804.0.113.3.zip && \
     rm Dockerfile && \
     rm README.md && \
-    rm Singularity && \
-    rm Singularity.1.0.0 && \
+    rm Singularity* && \
     rm *.yaml
 
 # Install multi_pyspin
@@ -32,12 +34,18 @@ RUN cd /extra/multi_pyspin && \
     printf 'y\nn\n' | sh install_spinnaker.sh && \
     cd ../ && \
     rm -rf spinnaker-1.21.0.61-amd64 && \
+    rm spinnaker-1.21.0.61-amd64-Ubuntu18.04-pkg.tar.gz && \
     python3 -m pip install -r requirements.txt && \
-    rm spinnaker_python-1.21.0.61-cp36-cp36m-linux_x86_64.whl
+    rm requirements.txt && \
+    rm spinnaker_python-1.21.0.61-cp36-cp36m-linux_x86_64.whl && \
+    apt-get -y install python3-tk && \
+    apt-get -y install libswscale4 && \
+    apt-get -y install libavcodec57 && \
+    apt-get -y install libavformat57
 
 # Set environment
 ENV PATH "$PATH":/extra/multi_pyspin
 ENV PYTHONPATH /extra/multi_pyspin
 
 # Start GUI
-CMD python3 multi_pyspin_gui.py
+CMD python3 /extra/multi_pyspin/multi_pyspin_gui.py
