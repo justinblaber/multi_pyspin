@@ -44,7 +44,6 @@ RUN cd /extra/multi_pyspin && \
     apt-get -y install libavformat57
 
 # Set environment
-ENV PATH "$PATH":/extra/multi_pyspin
 ENV PYTHONPATH /extra/multi_pyspin
 
 # Start GUI

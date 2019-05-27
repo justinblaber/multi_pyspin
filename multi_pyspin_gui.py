@@ -445,6 +445,7 @@ def _start_stream(cam_num):
 
         # Set stream to true; do this last
         _STREAMS[cam_num] = True
+
         print(serial + ' - stream started')
 
 
@@ -459,6 +460,7 @@ def _stop_stream(cam_num):
         # Stop acquisition
         serial = _get_and_validate_serial(cam_num)
         multi_pyspin.end_acquisition(serial)
+
         print(serial + ' - stream stopped')
 
 
@@ -610,10 +612,12 @@ def _save_images(cam_nums):
     # Disable all active streams
     _stop_streams()
 
-    # Update all timestamps before collecting images
+    # Set StreamBufferCount (queue buffer on PC RAM). Note that for linux and usb cameras you must set usbfs to an
+    # appropriate size
     for cam_num in cam_nums:
         serial = _get_and_validate_serial(cam_num)
-        multi_pyspin.update_timestamp_offset(serial)
+        multi_pyspin.node_cmd(serial, 'TLStream.StreamBufferCountMode', 'SetValue', 'RW', 'PySpin.StreamBufferCountMode_Manual')
+        multi_pyspin.node_cmd(serial, 'TLStream.StreamBufferCountManual', 'SetValue', 'RW', _STREAM_BUFFER_COUNT)
 
     # Set buffer to oldest first, and set acquisition mode and acquisition frame count
     for cam_num in cam_nums:
@@ -628,12 +632,10 @@ def _save_images(cam_nums):
         else:
             raise RuntimeError('Invalid value for burst #: ' + str(num_bursts))
 
-    # Set StreamBufferCount (queue buffer on PC RAM). Note that for linux and usb cameras you must set usbfs to an
-    # appropriate size
+    # Update all timestamps before collecting images
     for cam_num in cam_nums:
         serial = _get_and_validate_serial(cam_num)
-        multi_pyspin.node_cmd(serial, 'TLStream.StreamBufferCountMode', 'SetValue', 'RW', 'PySpin.StreamBufferCountMode_Manual')
-        multi_pyspin.node_cmd(serial, 'TLStream.StreamBufferCountManual', 'SetValue', 'RW', _STREAM_BUFFER_COUNT)
+        multi_pyspin.update_timestamp_offset(serial)
 
     # Grab number of images
     time_begin = datetime.now()
@@ -676,7 +678,7 @@ def _save_images(cam_nums):
 
                     # Make sure image is complete
                     if image_dict:
-                        # Save image
+                        # Get image name
                         image_name = name_format.format(serial='SERIAL_' + serial,
                                                         datetime='DATETIME_' + str(datetime.fromtimestamp(image_dict['timestamp'])).replace('.', '-').replace(' ', '-').replace('_', '-'),
                                                         cam='CAM_' + str(cam_num+1),
