@@ -1,37 +1,43 @@
-# This install is for ubuntu 16.04 and python 3.5
-FROM ubuntu:16.04
+# This install is for ubuntu 18.04 and python 3.6
+FROM ubuntu:18.04
 
 # Update
-RUN apt-get -y update && apt-get -y upgrade
+RUN apt-get -y update
 
 # Install python/pip
 RUN apt-get -y install python3 && \
-    apt-get -y install python3-pip && \
-    ln -s /usr/bin/python3 /usr/bin/python
+    apt-get -y install python3-pip
 
-# Install stereo_pyspin
+# Install git
+RUN apt-get -y install git
+
+# Clone repo and remove unneeded files
 RUN mkdir /extra && \
     cd /extra && \
+    git clone https://github.com/justinblaber/multi_pyspin.git && \
+    cd multi_pyspin && \
+    rm BFS-U3-32S4_1804.0.113.3.zip && \
+    rm Dockerfile && \
+    rm README.md && \
+    rm Singularity && \
+    rm Singularity.1.0.0 && \
+    rm *.yaml
+
+# Install multi_pyspin
+RUN cd /extra/multi_pyspin && \
+    tar xvfz spinnaker-1.21.0.61-amd64-Ubuntu18.04-pkg.tar.gz && \
+    cd spinnaker-1.21.0.61-amd64 && \
     apt-get -y install sudo && \
-    apt-get -y install git && \
-    git clone https://github.com/justinblaber/stereo_pyspin.git && \
-    cd stereo_pyspin && \
-    tar xvfz spinnaker-1.10.0.31-amd64.tar.gz && \
-    cd spinnaker-1.10.0.31-amd64 && \
-    apt-get -y install libavcodec-ffmpeg56 && \
-    apt-get -y install libavformat-ffmpeg56 && \
-    apt-get -y install libswscale-ffmpeg3 && \
-    apt-get -y install libswresample-ffmpeg1 && \
-    apt-get -y install libavutil-ffmpeg54 && \
     apt-get -y install libusb-1.0-0 && \
     printf 'y\nn\n' | sh install_spinnaker.sh && \
     cd ../ && \
-    rm -rf spinnaker-1.10.0.31-amd64 && \
-    python -m pip install --upgrade pip && \
-    python -m pip install -r requirements.txt && \
-    apt-get -y install python3-tk
+    rm -rf spinnaker-1.21.0.61-amd64 && \
+    python3 -m pip install -r requirements.txt && \
+    rm spinnaker_python-1.21.0.61-cp36-cp36m-linux_x86_64.whl
 
-ENV PATH "$PATH":/extra/stereo_pyspin
-ENV PYTHONPATH /extra/stereo_pyspin
+# Set environment
+ENV PATH "$PATH":/extra/multi_pyspin
+ENV PYTHONPATH /extra/multi_pyspin
 
-CMD stereo_pyspin_gui
+# Start GUI
+CMD python3 multi_pyspin_gui.py
