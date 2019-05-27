@@ -4,6 +4,9 @@ FROM ubuntu:18.04
 # Disable interactive dialogue with dpkg
 ENV DEBIAN_FRONTEND noninteractive
 
+# Disable python user site
+ENV PYTHONNOUSERSITE 1
+
 # Update
 RUN apt-get -y update
 
