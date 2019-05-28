@@ -55,24 +55,27 @@ A simple multi camera library using PySpin.
  
 6) Run the singularity image:
 
-   `~/multi_pyspin/multi_pyspin.simg`
+   `./multi_pyspin.simg`
    
    A gui should appear like so:
 
-   ![alt text](https://i.imgur.com/0XrLia4.png)
+   ![alt text](https://i.imgur.com/FYtCHwb.png)
    
-7) Find and initialize both primary and secondary cameras, then start the stream. If successful, the gui should look like:
+7) Set the number of cameras, configure the yaml files, press the setup buttons, set gain/exposure/fps, then start the stream. If successful, the gui should look like:
 
-   ![alt text](https://i.imgur.com/16Njddo.png)
+   ![alt text](https://i.imgur.com/vxUgBHn.png)
    
-8) After the stream is started, you can save images:
+8) Saving images should result in something like:
 
-   `16276941_2018-07-10_02:04:23_916915_1_L.png`:
-    ![alt text](https://i.imgur.com/6IbZG1K.jpg)
+   `SERIAL_19061245_DATETIME_2019-05-28-02:52:24-107213_CAM_1_FRAMEID_0_COUNTER_1.png`:
+    ![alt text](https://i.imgur.com/3YPqKrA.jpg)
     
-   `16276942_2018-07-10_02:04:23_918101_1_R.png`:
-    ![alt text](https://i.imgur.com/zCkXFhz.jpg)
+   `SERIAL_16276941_DATETIME_2019-05-28-02:52:24-107246_CAM_2_FRAMEID_0_COUNTER_1.png`:
+    ![alt text](https://i.imgur.com/MFy3Mz9.jpg)
     
-   It's important to note that the images should be acquired very closely in time (especially if a hardware trigger is used). 
+   `SERIAL_19061245_DATETIME_2019-05-28-02:52:24-107213_CAM_1_FRAMEID_0_COUNTER_1.png`:
+    ![alt text](https://i.imgur.com/7ESetYr.jpg)
+    
+   It's important to note that the images should be acquired very closely in time (especially if a hardware trigger is used, in which case the times should be ~1e-3 seconds apart at most) and their frameid's should match up.  
 
    
