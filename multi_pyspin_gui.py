@@ -10,6 +10,7 @@
 
 import sys
 import copy
+import time
 import queue
 import functools
 from datetime import datetime
@@ -1146,6 +1147,7 @@ def main():
             _update_fig(_FIG)
     except:
         # Only re-raise error if figure is still open
+        time.sleep(1)  # I think this will let figure actually close
         if plt.fignum_exists(_FIG.number):
             raise
 
