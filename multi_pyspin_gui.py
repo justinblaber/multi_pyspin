@@ -1100,7 +1100,7 @@ def _set_multi_fig_callbacks():
 
 def main():
     """ Main program """
-    global _NUM_CAMS, _SERIALS, _FIG, _QUEUE, _STREAMS, _IMSHOW_DICTS, _HIST_DICTS, _GUI_DICT
+    global _NUM_CAMS, _SERIALS, _IMAGE_TIMEOUT, _FIG, _QUEUE, _STREAMS, _IMSHOW_DICTS, _HIST_DICTS, _GUI_DICT
 
     # Create figure
     _FIG = plt.figure()
@@ -1122,26 +1122,31 @@ def main():
     _set_multi_fig_callbacks()
 
     # Update plot while figure exists
-    while plt.fignum_exists(_FIG.number):
-        # Handle streams
-        if any(_STREAMS):
-            _stream_images_wrapped()
+    # noinspection PyBroadException
+    try:
+        while plt.fignum_exists(_FIG.number):
+            # Handle streams
+            if any(_STREAMS):
+                _stream_images_wrapped()
 
-        # Handle queue
-        while not _QUEUE.empty():
-            func, args, kwargs = _QUEUE.get()
+            # Handle queue
+            while not _QUEUE.empty():
+                func, args, kwargs = _QUEUE.get()
 
-            # Attempt to run function, if it fails, display an error message box and continue
-            try:
-                func(*args, **kwargs)
-            except Exception as e:
-                messagebox.showerror("Error", str(e))
+                # Attempt to run function, if it fails, display an error message box and continue
+                try:
+                    func(*args, **kwargs)
+                except Exception as e:
+                    messagebox.showerror("Error", str(e))
+
+                # Update fig
+                _update_fig(_FIG)
 
             # Update fig
             _update_fig(_FIG)
-
-        # Update fig
-        _update_fig(_FIG)
+    except:
+        if plt.fignum_exists(_FIG.number):
+            raise
 
     print('Cleaning up multi_pyspin_gui...')
 
