@@ -58,7 +58,7 @@ _STREAM_BUFFER_COUNT = 10  # TODO: Possibly calculate this dynamically...
 _DELAY_WARNING_TOLERANCE = 1e-3
 
 # Set number of histogram bins
-_NUM_HISTOGRAM_BINS = 100
+_NUM_HISTOGRAM_BINS = 50
 
 # GUI params
 _FIG = None
@@ -1145,6 +1145,7 @@ def main():
             # Update fig
             _update_fig(_FIG)
     except:
+        # Only re-raise error if figure is still open
         if plt.fignum_exists(_FIG.number):
             raise
 
