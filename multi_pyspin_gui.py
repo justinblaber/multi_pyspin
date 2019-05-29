@@ -371,13 +371,12 @@ def _multi_fig(fig, num_cams, gain_min, gain_max, gain_default, exposure_min, ex
 def _plot_image(image, max_val, image_axes, imshow_dict):
     """ plots image somewhat fast """
 
-    # If image hasn't been plotted yet, or if image size changes or if max val changes, then we must replot imshow
-    if not imshow_dict or (image.shape != imshow_dict['imshow_size'] or max_val != imshow_dict['max_val']):
+    # If image hasn't been plotted yet or if image size changes, then we must replot imshow
+    if not imshow_dict or image.shape != imshow_dict['imshow_size']:
         # Must reset axes and re-imshow()
         image_axes.cla()
-        imshow_dict['imshow'] = image_axes.imshow(image, cmap='gray', vmin=0, vmax=max_val)
+        imshow_dict['imshow'] = image_axes.imshow(image, cmap='gray')
         imshow_dict['imshow_size'] = image.shape
-        imshow_dict['max_val'] = max_val
         image_axes.set_xticklabels([])
         image_axes.set_yticklabels([])
         image_axes.set_xticks([])
@@ -386,6 +385,9 @@ def _plot_image(image, max_val, image_axes, imshow_dict):
         # Can just "set_data" since data is the same size and has the same max val
         imshow_dict['imshow'].set_data(image)
 
+    # Set clim to max value
+    imshow_dict['imshow'].set_clim(vmin=0, vmax=max_val)
+
     return imshow_dict
 
 
@@ -393,16 +395,14 @@ def _plot_hist(image, max_val, num_bins, hist_axes, hist_dict):
     """ plots histogram somewhat fast """
 
     # Calculate histogram
-    hist, bins = np.histogram(image.ravel(), density=True, bins=num_bins, range=(0, max_val))
+    hist, _ = np.histogram(image.ravel(), bins=num_bins, range=(0, max_val))
 
-    # If histogram hasn't been plotted yet, or if number of bins changes or max_val changes, then we must replot histogram
-    if not hist_dict or (hist_dict['num_bins'] != num_bins or hist_dict['max_val'] != max_val):
+    # If histogram hasn't been plotted yet or if number of bins changes, then we must replot histogram
+    if not hist_dict or hist_dict['num_bins'] != num_bins:
         # Must reset axes and plot hist
         hist_axes.cla()
-        hist_dict['bar'] = hist_axes.bar(bins[:-1], hist, color='k', width=(max_val+1)/num_bins)
+        hist_dict['bar'] = hist_axes.bar(np.linspace(0, 1, num_bins), hist, color='k', width=1/(num_bins-1))
         hist_dict['num_bins'] = num_bins
-        hist_dict['max_val'] = max_val
-        hist_axes.set_ylim(0, num_bins/max_val)  # Note that density=True makes it a probability density function
         hist_axes.set_xticklabels([])
         hist_axes.set_yticklabels([])
         hist_axes.set_xticks([])
@@ -411,6 +411,9 @@ def _plot_hist(image, max_val, num_bins, hist_axes, hist_dict):
         # Just reset height
         for i, bar in enumerate(hist_dict['bar']):
             bar.set_height(hist[i])
+
+    # Set height to max histogram value
+    hist_axes.set_ylim(0, np.max(hist))
 
     return hist_dict
 
