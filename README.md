@@ -61,11 +61,11 @@ A simple multi camera library using PySpin.
 
    ![alt text](https://i.imgur.com/FYtCHwb.png)
    
-7) Set the number of cameras, configure the yaml files, press the setup buttons, set gain/exposure/fps, then start the stream. If successful, the gui should look like:
+7) Set the number of cameras, set/configure the yaml files, press the "setup" buttons, set gain/exposure/fps, then (optionally) start the streams. If successful, the gui should look like:
 
    ![alt text](https://i.imgur.com/vxUgBHn.png)
    
-8) Saving images should result in something like:
+8) Saving "multi" images should result in something like:
 
    `SERIAL_19061245_DATETIME_2019-05-28-02:52:24-107213_CAM_1_FRAMEID_0_COUNTER_1.png`:
     ![alt text](https://i.imgur.com/3YPqKrA.jpg)
