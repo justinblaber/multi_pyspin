@@ -59,22 +59,22 @@ A simple multi camera library using PySpin.
    
    A gui should appear like so:
 
-   ![alt text](https://i.imgur.com/FYtCHwb.png)
+   ![alt text](https://i.imgur.com/jPka3u2.png)
    
 7) Set the number of cameras, set/configure the yaml files, press the "setup" buttons, set gain/exposure/fps, then (optionally) start the streams. If successful, the gui should look like:
 
-   ![alt text](https://i.imgur.com/vxUgBHn.png)
+   ![alt text](https://i.imgur.com/dCciY3U.png)
    
 8) Saving "multi" images should result in something like:
 
-   `SERIAL_19061245_DATETIME_2019-05-28-02:52:24-107213_CAM_1_FRAMEID_0_COUNTER_1.png`:
-    ![alt text](https://i.imgur.com/3YPqKrA.jpg)
+   `SERIAL_19061245_DATETIME_2019-05-28-22:28:10-795899_CAM_1_FRAMEID_0_COUNTER_1.png`:
+    ![alt text](https://i.imgur.com/UzNALwJ.jpg)
     
-   `SERIAL_16276941_DATETIME_2019-05-28-02:52:24-107246_CAM_2_FRAMEID_0_COUNTER_1.png`:
-    ![alt text](https://i.imgur.com/MFy3Mz9.jpg)
+   `SERIAL_16276941_DATETIME_2019-05-28-22:28:10-795920_CAM_2_FRAMEID_0_COUNTER_1.png`:
+    ![alt text](https://i.imgur.com/ugvS6AR.jpg)
     
-   `SERIAL_19061245_DATETIME_2019-05-28-02:52:24-107213_CAM_1_FRAMEID_0_COUNTER_1.png`:
-    ![alt text](https://i.imgur.com/7ESetYr.jpg)
+   `SERIAL_16276942_DATETIME_2019-05-28-22:28:10-795941_CAM_3_FRAMEID_0_COUNTER_1.png`:
+    ![alt text](https://i.imgur.com/rVU5JE4.jpg)
     
    It's important to note that the images should be acquired very closely in time (especially if a hardware trigger is used, in which case the times should be ~1e-3 seconds apart at most) and their frameid's should match up.  
 
