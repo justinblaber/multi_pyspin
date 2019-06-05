@@ -30,17 +30,17 @@ RUN mkdir /extra && \
 
 # Install multi_pyspin
 RUN cd /extra/multi_pyspin && \
-    tar xvfz spinnaker-1.21.0.61-amd64-Ubuntu18.04-pkg.tar.gz && \
-    cd spinnaker-1.21.0.61-amd64 && \
+    tar xvfz spinnaker-1.23.0.27-amd64-Ubuntu18.04-pkg.tar.gz && \
+    cd spinnaker-1.23.0.27-amd64 && \
     apt-get -y install sudo && \
     apt-get -y install libusb-1.0-0 && \
     printf 'y\nn\n' | sh install_spinnaker.sh && \
     cd ../ && \
-    rm -rf spinnaker-1.21.0.61-amd64 && \
-    rm spinnaker-1.21.0.61-amd64-Ubuntu18.04-pkg.tar.gz && \
+    rm -rf spinnaker-1.23.0.27-amd64 && \
+    rm spinnaker-1.23.0.27-amd64-Ubuntu18.04-pkg.tar.gz && \
     python3 -m pip install -r requirements.txt && \
     rm requirements.txt && \
-    rm spinnaker_python-1.21.0.61-cp36-cp36m-linux_x86_64.whl && \
+    rm spinnaker_python-1.23.0.27-cp36-cp36m-linux_x86_64.whl && \
     apt-get -y install python3-tk && \
     apt-get -y install libswscale4 && \
     apt-get -y install libavcodec57 && \

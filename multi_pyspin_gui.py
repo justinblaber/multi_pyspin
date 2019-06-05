@@ -4,9 +4,9 @@
 
 # Designed and tested on:
 #   -camera:                        Blackfly S BFS-U3-32S4M
-#   -firmware:                      1804.0.113.0
-#   -spinnaker version:             spinnaker-1.21.0.61-amd64-Ubuntu18.04-pkg
-#   -spinnaker python version:      spinnaker_python-1.21.0.61-cp36-cp36m-linux_x86_64
+#   -firmware:                      1804.0.113.3
+#   -spinnaker version:             spinnaker-1.23.0.27-amd64-Ubuntu18.04
+#   -spinnaker python version:      spinnaker_python-1.23.0.27-cp36-cp36m-linux_x86_64
 
 import sys
 import copy
