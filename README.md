@@ -40,7 +40,7 @@ A simple multi camera library using PySpin.
    wget https://github.com/justinblaber/multi_pyspin/blob/master/spinnaker-1.23.0.27-amd64-Ubuntu18.04-pkg.tar.gz?raw=true -O spinnaker-1.23.0.27-amd64-Ubuntu18.04-pkg.tar.gz
    tar xvfz spinnaker-1.23.0.27-amd64-Ubuntu18.04-pkg.tar.gz
    cd spinnaker-1.23.0.27-amd64
-   sudo sh spin-conf
+   sudo ./configure_spinnaker.sh
    ```
 
 4) [Install singularity](https://singularity.lbl.gov/install-linux)
