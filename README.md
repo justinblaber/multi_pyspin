@@ -37,9 +37,9 @@ A simple multi camera library using PySpin.
    
    ```
    cd /tmp
-   wget https://github.com/justinblaber/multi_pyspin/blob/master/spinnaker-1.21.0.61-amd64-Ubuntu18.04-pkg.tar.gz?raw=true -O spinnaker-1.21.0.61-amd64-Ubuntu18.04-pkg.tar.gz
-   tar xvfz spinnaker-1.21.0.61-amd64-Ubuntu18.04-pkg.tar.gz
-   cd spinnaker-1.21.0.61-amd64
+   wget https://github.com/justinblaber/multi_pyspin/blob/master/spinnaker-1.23.0.27-amd64-Ubuntu18.04-pkg.tar.gz?raw=true -O spinnaker-1.23.0.27-amd64-Ubuntu18.04-pkg.tar.gz
+   tar xvfz spinnaker-1.23.0.27-amd64-Ubuntu18.04-pkg.tar.gz
+   cd spinnaker-1.23.0.27-amd64
    sudo sh spin-conf
    ```
 
