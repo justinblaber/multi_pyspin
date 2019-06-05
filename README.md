@@ -76,6 +76,6 @@ A simple multi camera library using PySpin.
    `SERIAL_16276942_DATETIME_2019-05-28-22:28:10-795941_CAM_3_FRAMEID_0_COUNTER_1.png`:
     ![alt text](https://i.imgur.com/rVU5JE4.jpg)
     
-   It's important to note that the images should be acquired very closely in time (especially if a hardware trigger is used, in which case the times should be ~1e-3 seconds apart at most) and their frameid's should match up.  
+   It's important to note that the images should be acquired very closely in time (especially if a hardware trigger is used, in which case the times should be ~1e-3 seconds apart at most) and their frameid's should match.  
 
    
